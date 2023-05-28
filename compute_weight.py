@@ -1,21 +1,24 @@
 from pathlib import Path
 import sys
+from typing import cast
 
 import xlwt
+from torch import Tensor
+from numpy.typing import NDArray
+
 from preprocess_data import *
-from connectivity.PMI import *
+from connectivity.PMI import SPMI_1epoch
 from utils import get_data_files
 
 def compute_weight(data_path: str, out_path: str):
     train, _ = get_data_check_intend(data_path)
-    for eeg, _ in train:
-        break
+    eeg = cast(Tensor, train.dataset.tensors[0])
+    data = cast(NDArray, eeg[0].numpy())
     weight = []
-    data = eeg[0].numpy()
-    for i in range(4):
+    for i in range(data.shape[1]):
         epoch = data[:, i, :]
-        temp = SPMI_1epoch(epoch, 5, 1)
-        weight.append(temp)
+        pmi = SPMI_1epoch(epoch, 5, 1)
+        weight.append(pmi)
 
     workbook = xlwt.Workbook()
     for i in range(len(weight)):
