@@ -139,8 +139,10 @@ def visualize(
     figure = Figure(data=edge_traces + [node_trace], layout=layout)
     
     # Create slider
-    min = connectivity_matrix.min()
-    max = connectivity_matrix.max()
+    matrix_mask = np.full(connectivity_matrix.shape, True, dtype=bool)
+    np.fill_diagonal(matrix_mask, False)
+    min = connectivity_matrix.min(initial=sys.float_info.max, where=matrix_mask)
+    max = connectivity_matrix.max(initial=sys.float_info.min, where=matrix_mask)
     slider_values = slider_step if type(slider_step) == list else np.linspace(min, max, cast(int, slider_step) + 1).tolist()
     steps = []
     for value in slider_values:
