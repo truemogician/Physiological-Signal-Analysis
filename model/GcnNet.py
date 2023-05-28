@@ -39,20 +39,20 @@ class GcnNet(Module):
     def __init__(self, 
         node_emb_dims: int,
         adj_mat_array: NDArray,
-        num_classes: int):
+        class_num: int):
         assert len(adj_mat_array.shape) == 2 and adj_mat_array.shape[0] == adj_mat_array.shape[1], "adj_mat_array must be a square matrix"
         super(GcnNet, self).__init__()
         self.node_emb_dims = node_emb_dims
         self.adj_mat_array = adj_mat_array
         self.node_num = adj_mat_array.shape[0]
-        self.num_classes = num_classes
+        self.class_num = class_num
         device = get_device()
         self.gcn_layer = Gcn(self.adj_mat_array, self.node_emb_dims)
         self.conv1 = nn.Conv1d(self.node_num, self.node_num, 3, device=device)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout()
         self.linear1 = nn.Linear(self.node_emb_dims * self.node_num, self.node_emb_dims, device=device)
-        self.linear2 = nn.Linear(self.node_emb_dims, self.num_classes, device=device)
+        self.linear2 = nn.Linear(self.node_emb_dims, self.class_num, device=device)
 
     def forward(self, node_att_array: Tensor):
         shape = node_att_array.shape

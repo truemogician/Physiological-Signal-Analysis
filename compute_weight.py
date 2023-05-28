@@ -36,5 +36,5 @@ if __name__ == '__main__':
         indices = [int(i) for i in sys.argv[1:]]
         data_files = {k: v for k, v in data_files.items() if k in indices}
     for [i, f] in data_files.items():
-        print(f"Processing {i}...")
-        compute_weight(f, f"result/sub-{i:02}/eeg_initial_weight.xls")
+        print(f"Processing subject {i}...")
+        compute_weight(f, f"result/sub-{i:02}/eeg_initial_weight.xlsx")

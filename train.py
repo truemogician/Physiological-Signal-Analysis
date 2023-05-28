@@ -1,5 +1,6 @@
 import time
 import sys
+import os
 from typing import Tuple
 
 from matplotlib import pyplot as plt
@@ -12,6 +13,7 @@ import xlwt
 from model.GcnNet import GcnNet
 from preprocess_data import *
 from connectivity.PMI import *
+from compute_weight import compute_weight
 from utils.common import get_data_files
 from utils.torch import get_device
 
@@ -49,7 +51,7 @@ def train(
     test_iter: DataLoader[Tuple[Tensor, Tensor]], 
     optimizer: torch.optim.Optimizer, 
     criteria, 
-    epochs_num=200):
+    iteration_num=200):
     result = {
         "train_loss": [],
         "train_acc": [],
@@ -57,11 +59,11 @@ def train(
         "test_acc": [],
     }
     device = get_device()
+    print(f"Using device {device}")
     model = model.to(device)
-    print(next(model.parameters()).device)
     max_acc = 0.0
 
-    for epoch in range(epochs_num):
+    for iter in range(iteration_num):
         running_loss, running_corrects, data_num = 0.0, 0, 0
         model.train()
         for eeg, label in train_iter:
@@ -87,8 +89,8 @@ def train(
         # if (epoch+1) % 10 == 0:
         #     graph_weight = model.get_weight()
         # print(graph_weight)
-        print("{} epoch\n[Train] loss: {:.4f}, acc: {:.4f}".format(
-            epoch,
+        print("{} iteration\n[Train] loss: {:.4f}, acc: {:.4f}".format(
+            iter,
             (running_loss / data_num).item(),
             (running_corrects / data_num).item()
         ))
@@ -105,20 +107,17 @@ def train(
     test_acc_mean = sum(result["test_acc"][length // 2 :]) / len(result["test_acc"][length // 2 :])
     result["test_acc"].append(test_acc_mean)
     workbook = xlwt.Workbook()
-    sheet = workbook.add_sheet(f"sheet_{epoch}")
-    data = list(result["train_loss"])
-    for row in range(len(data)):
-        sheet.write(row, 0, data[row])
-    data = list(result["train_acc"])
-    for row in range(len(data)):
-        sheet.write(row, 1, data[row])
-    data = list(result["test_loss"])
-    for row in range(len(data)):
-        sheet.write(row, 2, data[row])
-    data = list(result["test_acc"])
-    for row in range(len(data)):
-        sheet.write(row, 3, data[row])
-    workbook.save(f"result/sub-{subj:02d}/train_stats.xls")
+    sheet = workbook.add_sheet(f"sheet_{iter}")
+    sheet.write(0, 0, "train_loss")
+    sheet.write(0, 1, "train_acc")
+    sheet.write(0, 2, "test_loss")
+    sheet.write(0, 3, "test_acc")
+    for i in range(len(result["train_loss"])):
+        sheet.write(i + 1, 0, result["train_loss"][i])
+        sheet.write(i + 1, 1, result["train_acc"][i])
+        sheet.write(i + 1, 2, result["test_loss"][i])
+        sheet.write(i + 1, 3, result["test_acc"][i])
+    workbook.save(f"result/sub-{subj:02d}/train_stats.xlsx")
     
     # 画出acc和loss的曲线
     plt.figure()
@@ -165,23 +164,23 @@ if __name__ == "__main__":
         indices = [int(i) for i in sys.argv[1:]]
         data_files = {k: v for k, v in data_files.items() if k in indices}
     for [subj, data_file] in data_files.items():
-        print(f"Subject {subj}")
+        print(f"Training model using data from subject {subj}...")
         start_time = time.time()
-        adj_path = f"result/sub-{subj:02d}/eeg_initial_weight.xls"
-        data = xlrd.open_workbook(adj_path)
-        # adj_mat_array = np.empty((0, 32, 32))
-        adj_mat_array = []
-        for i in range(4):
-            temp = []
-            table = data.sheets()[i]
-            for j in range(table.nrows):
-                temp.append(table.row_values(j))
-            adj_mat_array.append(temp)
+        adj_path = f"result/sub-{subj:02d}/eeg_initial_weight.xlsx"
+        if not os.path.exists(adj_path):
+            compute_weight(data_file, adj_path)
+        workbook = xlrd.open_workbook(adj_path)
+        
+        adjacent_matrixs = []
+        for sheet in workbook.sheets():
+            matrix = [sheet.row_values(i) for i in range(sheet.nrows)]
+            adjacent_matrixs.append(matrix)
+        
         # 将上三角矩阵转换为对称矩阵
-        for i in range(len(adj_mat_array)):
-            for j in range(len(adj_mat_array[i])):
-                for k in range(0, j):
-                    adj_mat_array[i][j][k] = adj_mat_array[i][k][j]
+        for k in range(len(adjacent_matrixs)):
+            for i in range(len(adjacent_matrixs[k])):
+                for j in range(0, i):
+                    adjacent_matrixs[k][i][j] = adjacent_matrixs[k][j][i]
 
         # 随机初始化邻接矩阵为0~2之间的数
         # for i in range(len(adj_mat_array)):
@@ -190,19 +189,20 @@ if __name__ == "__main__":
         #             adj_mat_array[i][j][k] = random.uniform(0, 2)
 
         workbook = xlwt.Workbook()
-        sheet = workbook.add_sheet("sheet1")
-        for row in range(len(adj_mat_array[0])):
-            for col in range(len(adj_mat_array[0][0])):
-                sheet.write(row, col, round(adj_mat_array[0][row][col], 5))
+        for k in range(len(adjacent_matrixs)):
+            sheet = workbook.add_sheet(f"trial_{k}")
+            for row in range(len(adjacent_matrixs[k])):
+                for col in range(len(adjacent_matrixs[k][row])):
+                    sheet.write(row, col, round(adjacent_matrixs[k][row][col], 5))
 
-        workbook.save(f"result/sub-{subj:02d}/pre_connectivity_matrix.xls")
-        adj_mat_array = np.array(adj_mat_array, dtype=np.float32)
+        workbook.save(f"result/sub-{subj:02d}/pre_connectivity_matrix.xlsx")
+        adjacent_matrixs = np.array(adjacent_matrixs, dtype=np.float32)
 
         # GCN_NET model
         gcn_net_model = GcnNet(
             node_emb_dims=800,
-            adj_mat_array=adj_mat_array[0],
-            num_classes=3,
+            adj_mat_array=adjacent_matrixs[0],
+            class_num=3,
         )
         train_iter, test_iter = get_data_movement_intention(data_file)
         optimizer = torch.optim.Adam(gcn_net_model.parameters(), lr=0.0001, weight_decay=1e-3)
@@ -217,13 +217,13 @@ if __name__ == "__main__":
             criteria=focal_loss_with_regularization,  # nn.CrossEntropyLoss(),
             epochs_num=200,
         )
-        print(f"Time Cost:{time.time() - start_time:.5f}s")
+        print(f"Time Cost :{time.time() - start_time:.5f}s")
         trained_adj = gcn_net_model.get_matrix()
         # 将trained_adj保存到excel中
         workbook = xlwt.Workbook()
-        sheet = workbook.add_sheet("sheet1")
+        sheet = workbook.add_sheet("trial_0")
         for row in range(trained_adj.shape[0]):
             for col in range(trained_adj.shape[1]):
                 sheet.write(row, col, trained_adj[row][col].item())
 
-        workbook.save(f"result/sub-{subj:02d}/trained_connectivity_matrix.xls")
+        workbook.save(f"result/sub-{subj:02d}/trained_connectivity_matrix.xlsx")
