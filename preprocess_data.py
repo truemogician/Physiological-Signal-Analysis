@@ -1,3 +1,7 @@
+import os.path as path
+import json
+from typing import Tuple, NamedTuple
+
 import numpy as np
 from numpy.typing import NDArray
 import mne
@@ -13,8 +17,17 @@ eeg_channel_names = [
     'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3',
     'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'PO10']
 
+# 1-三角前肌，2-肱桡肌，3-指屈肌，4-指总伸肌，5-骨间背肌
+# 1-anterior deltoid, 2-brachioradialis, 3-flexor digitorum, 4-common extensor digitorum, 5-first dorsal interosseus
 emg_channel_names = ['EMG1', 'EMG2', 'EMG3', 'EMG4', 'EMG5']
 
+eeg_electrode_metadata = json.load(open(path.join(path.dirname(__file__), "data/eeg_electrodes.json"), "r"))
+    
+class ElectrodeMetadata(NamedTuple):
+    group: int
+    coordinate: Tuple[float, float, float]
+
+eeg_electrode_metadata = {k: ElectrodeMetadata(v["group"], tuple(v["coordinate"])) for k, v in eeg_electrode_metadata.items()}
 
 def get_data(filename: str):
     # 1.加载数据（先eeg后emg）
