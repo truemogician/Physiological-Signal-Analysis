@@ -1,36 +1,31 @@
-import itertools
+import math
+from typing import Union, Tuple
+
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 
 
-def s_entropy(freq_list):
+List = Union[NDArray, list]
+
+def s_entropy(freq_list: List):
     ''' This function computes the shannon entropy of a given frequency distribution.
     USAGE: shannon_entropy(freq_list)
     ARGS: freq_list = Numeric vector representing the frequency distribution
     OUTPUT: A numeric value representing shannon's entropy'''
-    freq_list = [element for element in freq_list if element != 0]
-    sh_entropy = 0.0
-    for freq in freq_list:
-        sh_entropy += freq * np.log(freq)
-    sh_entropy = -sh_entropy
-    return (sh_entropy)
+    return -math.fsum([f * np.log(f) for f in freq_list if f != 0])
 
 
-def s_entropy_withP(freq_list):
+def s_entropy_withP(freq_list: List):
     ''' This function computes the shannon entropy of a given frequency distribution.
     USAGE: shannon_entropy(freq_list)
     ARGS: freq_list = Numeric vector representing the frequency distribution
     OUTPUT: A numeric value representing shannon's entropy'''
-    n_zeros = np.count_nonzero(freq_list == 0)
-    sh_entropy = n_zeros/len(freq_list)
-    freq_list = [element for element in freq_list if element != 0]
-    for freq in freq_list:
-        sh_entropy += freq * np.log(freq)
-    sh_entropy = -sh_entropy
-    return (sh_entropy)
+    n_zeros = len(freq_list) - np.count_nonzero(freq_list)
+    return s_entropy(freq_list) - n_zeros / len(freq_list)
 
 
-def p_entropy_withP(op):
+def p_entropy_withP(op: List):
     ''' Different from P_entropy: the max_entropy is calculated using the len(non_zero(op))
     USAGE: shannon_entropy(freq_list)
     ARGS: freq_list = Numeric vector representing the frequency distribution
@@ -43,16 +38,16 @@ def p_entropy_withP(op):
     ordinal_pat = op
     max_entropy = np.log(len(ordinal_pat))
     p = np.divide(np.array(ordinal_pat), float(sum(ordinal_pat)))
-    return (s_entropy_withP(p)/max_entropy)
+    return s_entropy_withP(p) / max_entropy
 
 
-def ordinal_patterns(ts, embdim, embdelay):
+def ordinal_patterns(ts: List, embdim: int, embdelay: int):
     ''' This function computes the ordinal patterns of a time series for a given embedding dimension and embedding delay.
     USAGE: ordinal_patterns(ts, embdim, embdelay)
     ARGS: ts = Numeric vector representing the time series, embdim = embedding dimension (3<=embdim<=7 prefered range), embdelay =  embdding delay
     OUPTUT: A numeric vector representing frequencies of ordinal patterns'''
     time_series = ts
-    possible_permutations = list(itertools.permutations(range(embdim)))
+    n_states = math.factorial(embdim)
     lst = list()
     for i in range(len(time_series) - embdelay * (embdim - 1)):
         sorted_index_array = list(np.argsort(time_series[i:(embdim+i)]))
@@ -60,12 +55,35 @@ def ordinal_patterns(ts, embdim, embdelay):
     lst = np.array(lst)
     element, freq = np.unique(lst, return_counts=True, axis=0)
     freq = list(freq)
-    if len(freq) != len(possible_permutations):
-        for i in range(len(possible_permutations)-len(freq)):
-            freq.append(0)
-        return (freq)
-    else:
-        return (freq)
+    if len(freq) < n_states:
+        freq += [0] * (n_states - len(freq))
+    return freq
+
+
+def joint_ordinal_patterns(ts: Tuple[List, List], embdim: int, embdelay: int):
+    ''' This function computes the ordinal patterns of two time series for a given embedding dimension and embedding delay.
+    USAGE: joint_ordinal_patterns(ts, embdim, embdelay)
+    ARGS: ts = Numeric vector representing two time series ,shape =(2,ts), 
+    embdim = embedding dimension (3<=embdim<=7 prefered range), embdelay =  embdding delay
+    OUPTUT: A numeric vector representing frequencies of ordinal patterns'''
+    assert len(ts) == 2 and len(ts[0]) == len(ts[1]), "ts must be a tuple of two lists with same length"
+    time_series_x = ts[0]
+    time_series_y = ts[1]
+    n_states = math.factorial(embdim) * 6
+    lst_x = list()
+    lst_y = list()
+    lst = list()
+    for i in range(len(time_series_x) - embdelay * (embdim - 1)):
+        lst_x.append(list(np.argsort(time_series_x[i:(embdim+i)])))
+        lst_y.append(list(np.argsort(time_series_y[i:(embdim+i)])))
+    lst_x = np.array(lst_x)
+    lst_y = np.array(lst_y)
+    lst = np.concatenate((lst_x, lst_y), axis=1)
+    element, freq = np.unique(lst, return_counts=True, axis=0)
+    freq = list(freq)
+    if len(freq) < n_states:
+        freq += [0] * (n_states - len(freq))
+    return (freq)
 
 
 def p_entropy(op):
@@ -99,7 +117,6 @@ def complexity(op):
 def weighted_ordinal_patterns(ts, embdim, embdelay):
     # take care of the variance within a observed pattern
     time_series = ts
-    possible_permutations = list(itertools.permutations(range(embdim)))
     temp_list = list()
     wop = list()
     for i in range(len(time_series) - embdelay * (embdim - 1)):
@@ -116,42 +133,6 @@ def weighted_ordinal_patterns(ts, embdim, embdelay):
         wop.append(
             np.sum(result.loc[result['pattern'] == pat, 'weights'].values))
     return (wop)
-
-
-def joint_ordinal_patterns(ts, embdim, embdelay):
-    ''' This function computes the ordinal patterns of two time series for a given embedding dimension and embedding delay.
-    USAGE: joint_ordinal_patterns(ts, embdim, embdelay)
-    ARGS: ts = Numeric vector representing two time series ,shape =(2,ts), 
-    embdim = embedding dimension (3<=embdim<=7 prefered range), embdelay =  embdding delay
-    OUPTUT: A numeric vector representing frequencies of ordinal patterns'''
-    time_series_x = ts[0]
-    time_series_y = ts[1]
-    possible_permutations = list(itertools.permutations(range(embdim)))
-    possible_permutations_repeat = np.repeat(
-        np.array(list(itertools.permutations(range(embdim)))), 6, axis=0)
-    possible_permutations_interlace = np.array(
-        list(itertools.permutations(range(embdim)))*6)
-    possible_joint_permutations = np.concatenate(
-        (possible_permutations_repeat, possible_permutations_interlace), axis=1)
-    lst_x = list()
-    lst_y = list()
-    lst = list()
-    for i in range(len(time_series_x) - embdelay * (embdim - 1)):
-        sorted_index_array = list(np.argsort(time_series_x[i:(embdim+i)]))
-        lst_x.append(sorted_index_array)
-        sorted_index_array = list(np.argsort(time_series_y[i:(embdim+i)]))
-        lst_y.append(sorted_index_array)
-    lst_x = np.array(lst_x)
-    lst_y = np.array(lst_y)
-    lst = np.concatenate((lst_x, lst_y), axis=1)
-    element, freq = np.unique(lst, return_counts=True, axis=0)
-    freq = list(freq)
-    if len(freq) != len(possible_joint_permutations):
-        for i in range(len(possible_joint_permutations)-len(freq)):
-            freq.append(0)
-        return (freq)
-    else:
-        return (freq)
 
 
 def PMI_2chs(ts_2chs, embdim, embdelay):
@@ -228,24 +209,23 @@ def SPMI_2chs(ts_2chs, embdim, embdelay):
     return (p_x+p_y-p_xy)/p_xy
 
 
-def SPMI_1epoch(epoch, embdim, embdelay):
+def SPMI_1epoch(epoch: NDArray, embdim: int, embdelay: int):
     ''' This function computes the SPMI for an epoch.
     USAGE: PMI_1epoch(epoch, embdim, embdelay)
     ARGS: epoch = Numpy arrayshape =(n_channels,ts), 
     embdim = embedding dimension (3<=embdim<=7 prefered range), embdelay =  embdding delay
     OUPTUT: PMI matrix
     '''
+    assert len(epoch.shape) == 2, "epoch must be a 2D array"
     SPMI = np.zeros([epoch.shape[0], epoch.shape[0]])
+    ops = [ordinal_patterns(epoch[i], embdim, embdelay) for i in range(epoch.shape[0])]
+    entropies = [p_entropy_withP(op) for op in ops]
     for i in range(epoch.shape[0]):
         for j in np.arange(i, epoch.shape[0]):
-            op_x = ordinal_patterns(epoch[i], embdim, embdelay)
-            op_y = ordinal_patterns(epoch[j], embdim, embdelay)
-            op_xy = joint_ordinal_patterns(
-                np.array([epoch[i], epoch[j]], dtype=object), embdim, embdelay)
-            p_x = p_entropy_withP(op_x)
-            p_y = p_entropy_withP(op_y)
+            op_xy = joint_ordinal_patterns(np.array([epoch[i], epoch[j]], dtype=object), embdim, embdelay)
+            p_x, p_y = entropies[i], entropies[j]
             p_xy = p_entropy_withP(op_xy)
-            SPMI[i, j] = (p_x+p_y-p_xy)/p_xy
+            SPMI[i, j] = (p_x + p_y - p_xy) / p_xy
     return SPMI
 
 
