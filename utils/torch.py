@@ -1,21 +1,23 @@
-from typing import Union
+from typing import cast, Union
 
 import torch
 
 
-device: Union[torch.device, None] = None
-
 def get_device():
+    device = cast(Union[torch.device, None], get_device.device)
     if device is None:
         if not torch.cuda.is_available():
             device = torch.device("cpu")
         else:
             gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
-            device = gpus[0]
-            free_memory = torch.cuda.mem_get_info(device)[0]
-            for gpu in gpus[1:]:
-                free_mem = torch.cuda.mem_get_info(gpu)[0]
+            idx = 0
+            free_memory = torch.cuda.mem_get_info(gpus[idx])[0]
+            for i in range(1, len(gpus)):
+                free_mem = torch.cuda.mem_get_info(gpus[i])[0]
                 if free_mem > free_memory:
-                    device = gpu
+                    idx = i
                     free_memory = free_mem
+            device = torch.device(f"cuda:{idx}")
+        get_device.device = device
     return device
+get_device.device = None
