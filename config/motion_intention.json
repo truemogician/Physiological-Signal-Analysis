@@ -23,6 +23,10 @@
 				"node": {
 					"always_show_text": true
 				},
+				"font": {
+					"color": "azure",
+					"size": 12
+				},
 				"layout": {
 					"width": 1226,
 					"height": 809,

@@ -246,6 +246,7 @@ if __name__ == "__main__":
             metadata, 
             style=PlotStyle(
                 node=conn_plot_conf["styles"]["node"],
+                font=conn_plot_conf["styles"]["font"],
                 layout=conn_plot_conf["styles"]["layout"]
             )
         )

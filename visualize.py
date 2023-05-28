@@ -4,6 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from igraph import Graph
 from plotly.graph_objects import Scatter3d, Scatter, Layout, Figure
+from plotly.graph_objs.layout import Slider
 
 Coordinate2D = Tuple[float, float]
 Coordinate3D = Tuple[float, float, float]
@@ -19,6 +20,7 @@ class PlotStyle(NamedTuple):
     node: Dict[str, Any] = dict()
     edge: Dict[str, Any] = dict()
     axis: Dict[str, Any] = dict()
+    font: Dict[str, Any] = dict()
     layout: Dict[str, Any] = dict()
 
 def visualize(
@@ -110,6 +112,7 @@ def visualize(
             x=[nodes[i][1][0], nodes[j][1][0], None],
             y=[nodes[i][1][1], nodes[j][1][1], None],
             text=[f"{(w * 100):.2f}%"],
+            textfont=style.font,
             hoverinfo="text"
         )
         if dimension == 3:
@@ -131,6 +134,7 @@ def visualize(
         y=[node[1][1] for node in nodes],
         z=[node[1][2] for node in nodes] if dimension == 3 else None,
         text=[node[0] for node in nodes],
+        textfont=style.font,
         hoverinfo="text" if marker_mode == "markers" else "none"
     )
     edge_traces = [plotType(**get_edge_attributes(edge)) for edge in edges]
@@ -161,11 +165,12 @@ def visualize(
             label=f"{(value * 100):.1f}%"
         )
         steps.append(step)
-    slider = dict(
+    slider = Slider(
         active=0,
         currentvalue={"prefix": "Threshold: "},
         pad={"t": 32},
-        steps=steps
+        steps=steps,
+        font=style.font
     )
     figure.update_layout(sliders=[slider])
     return figure
