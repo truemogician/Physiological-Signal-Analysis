@@ -14,6 +14,7 @@ from model.GcnNet import GcnNet
 from preprocess_data import *
 from connectivity.PMI import *
 from compute_weight import compute_weight
+from visualize import NodeMeta, visualize
 from utils.common import get_data_files
 from utils.torch import get_device
 
@@ -225,5 +226,6 @@ if __name__ == "__main__":
         for row in range(trained_adj.shape[0]):
             for col in range(trained_adj.shape[1]):
                 sheet.write(row, col, trained_adj[row][col].item())
-
         workbook.save(f"result/sub-{subj:02d}/trained_connectivity_matrix.xlsx")
+        figure = visualize(trained_adj.cpu().numpy(), [NodeMeta(n) for n in eeg_channel_names])
+        figure.write_html(f"result/sub-{subj:02d}/trained_connectivity_matrix.html")

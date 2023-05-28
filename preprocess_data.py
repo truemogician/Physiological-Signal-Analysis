@@ -6,6 +6,16 @@ import torch
 import torch.utils.data as Data
 
 
+eeg_channel_names = [
+    'Fp1', 'Fp2', 'F7', 'F3', 'Fz',
+    'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7',
+    'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5',
+    'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3',
+    'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'PO10']
+
+emg_channel_names = ['EMG1', 'EMG2', 'EMG3', 'EMG4', 'EMG5']
+
+
 def get_data(filename: str):
     # 1.加载数据（先eeg后emg）
     data: NDArray = np.load(filename, allow_pickle=True)
@@ -20,11 +30,7 @@ def get_data(filename: str):
 
     # 创建info结构
     info_eeg = mne.create_info(
-        ch_names=['Fp1', 'Fp2', 'F7', 'F3', 'Fz',
-                  'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6', 'T7',
-                  'C3', 'Cz', 'C4', 'T8', 'TP9', 'CP5',
-                  'CP1', 'CP2', 'CP6', 'TP10', 'P7', 'P3',
-                  'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'PO10'],
+        ch_names=eeg_channel_names,
         ch_types=['eeg'] * 32,
         sfreq=sfreq_eeg
     )
@@ -32,7 +38,7 @@ def get_data(filename: str):
         # 1-三角前肌，2-肱桡肌，3-指屈肌，4-指总伸肌，5-骨间背肌
         # 1-anterior deltoid, 2-brachioradialis, 3-flexor digitorum, 4-common extensor digitorum,
         # 5-first dorsal interosseus
-        ch_names=['EMG1', 'EMG2', 'EMG3', 'EMG4', 'EMG5'],
+        ch_names=emg_channel_names,
         ch_types='eeg',
         sfreq=sfreq_emg
     )
