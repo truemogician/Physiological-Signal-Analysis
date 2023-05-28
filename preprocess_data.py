@@ -297,8 +297,16 @@ def getdata_GCN_LSTM_0_2(filename, split_num=4):
     return lstm_train_loader, lstm_test_loader
 
 
-# 用于GCN_LSTM实现EEG运动意图检测的数据，取前4s的脑电数据(x,32,2000)，然后前两秒为休息0，后两秒为运动1
-def get_data_check_intend(filename: str):
+def get_data_movement_intention(
+    filename: str,
+    test_size = 0.3,
+    batch_size = 10,
+    shuffle = True):
+    '''
+    构建用于GCN_LSTM实现EEG运动意图检测的数据。
+    具体而言，因为2s时LED灯闪烁开始运动，因此取前4s的脑电数据，其中前2s为静息状态0，后2s为运动状态1。
+    输出数据维度为(2x, 32, 1000)，其中x为样本数。
+    '''
     eeg_epochs, _, label = get_data(filename)
     
     # 对数据进行0.05~50的滤波
@@ -308,28 +316,21 @@ def get_data_check_intend(filename: str):
     
     # 将数据拆分开
     eeg = np.concatenate((eeg_data[:, :, :1000], eeg_data[:, :, 1000:]), axis=0)
-    length = eeg.shape[2] // 4
-    eeg_shape = eeg.shape
-    eeg_temp = np.empty((eeg_shape[0], eeg_shape[1], 0, length))
-
-    eeg_data = eeg[:, :, np.newaxis, :]
-
-    for i in range(4):
-        eeg_temp = np.concatenate((eeg_temp, eeg_data[:, :, :, i*length:(i+1)*length]), axis=2)
-    eeg = eeg_temp
     
+    # 构建运动意图标签
     trial_num = eeg.shape[0]
     label = np.ones((trial_num))
     label[:trial_num//2] = 0
     
     # 划分训练集和测试集
-    train_eeg, test_eeg, train_label, test_label = train_test_split(eeg,  label, test_size=0.3, random_state=15)
+    train_eeg, test_eeg, train_label, test_label = train_test_split(eeg, label, test_size=test_size, random_state=15)
+    
     # 将数据放进迭代器中
     lstm_train_dataset = Data.TensorDataset(torch.tensor(train_eeg), torch.tensor(train_label))
     lstm_test_dataset = Data.TensorDataset(torch.tensor(test_eeg), torch.tensor(test_label))
+    lstm_train_loader = Data.DataLoader(dataset=lstm_train_dataset, batch_size=batch_size, shuffle=shuffle)
+    lstm_test_loader = Data.DataLoader(dataset=lstm_test_dataset, batch_size=batch_size, shuffle=shuffle)
     
-    lstm_train_loader = Data.DataLoader(dataset=lstm_train_dataset, batch_size=10, shuffle=True)
-    lstm_test_loader = Data.DataLoader(dataset=lstm_test_dataset, batch_size=10, shuffle=True)
     return lstm_train_loader, lstm_test_loader
 
 

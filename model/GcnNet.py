@@ -27,7 +27,8 @@ class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)
 
     def forward(self, node_array: Tensor):
         x: Tensor = self.linear1(node_array.T).T
-        x = x.reshape(x.shape[0], -1)
+        if len(x.shape) > 2:
+            x = x.view(x.shape[0], -1)
         if self.linear2 is None:
             self.linear2 = nn.Linear(x.shape[1], self.node_emb_dim, device = x.device)
         x = self.ReLU(self.linear2(x))
@@ -61,14 +62,12 @@ class GcnNet(Module):
             temp = self.gcn_layer(node_att_array[i])
             temp = torch.unsqueeze(temp, dim=0)
             x = torch.cat([x, temp], dim=0)
-
         # x = self.conv1(x)
-        x = x.reshape(x.shape[0], -1)
-
+        if len(x.shape) > 2:
+            x = x.view(x.shape[0], -1)
         x = self.relu(self.linear1(x))
         self.dropout(x)
         x = self.linear2(x)
-
         return x
     
     def get_matrix(self):

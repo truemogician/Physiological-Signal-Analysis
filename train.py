@@ -204,7 +204,7 @@ if __name__ == "__main__":
             adj_mat_array=adj_mat_array[0],
             num_classes=3,
         )
-        train_iter, test_iter = get_data_check_intend(data_file)
+        train_iter, test_iter = get_data_movement_intention(data_file)
         optimizer = torch.optim.Adam(gcn_net_model.parameters(), lr=0.0001, weight_decay=1e-3)
 
         train(
