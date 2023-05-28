@@ -12,7 +12,8 @@ import xlwt
 from model.GcnNet import GcnNet
 from preprocess_data import *
 from connectivity.PMI import *
-from utils import get_data_files, get_device
+from utils.common import get_data_files
+from utils.torch import get_device
 
 
 def test(model, test_iter, criteria):

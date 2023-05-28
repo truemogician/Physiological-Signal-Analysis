@@ -1,3 +1,4 @@
+import sys
 from typing import Union
 
 import torch
@@ -7,7 +8,8 @@ from torch.nn import Module
 from torch.nn.parameter import Parameter
 from numpy.typing import NDArray
 
-from ..utils import get_device
+sys.path.append("..")
+from utils.torch import get_device
 
 
 class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)

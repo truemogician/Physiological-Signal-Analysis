@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 
 from preprocess_data import *
 from connectivity.PMI import SPMI_1epoch
-from utils import get_data_files
+from utils.common import get_data_files
 
 def compute_weight(data_path: str, out_path: str):
     train, _ = get_data_check_intend(data_path)
