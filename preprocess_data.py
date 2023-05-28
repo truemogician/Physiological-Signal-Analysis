@@ -1,13 +1,14 @@
 import numpy as np
+from numpy.typing import NDArray
 import mne
 from sklearn.model_selection import train_test_split
 import torch
 import torch.utils.data as Data
 
 
-def get_data(filename):
+def get_data(filename: str):
     # 1.加载数据（先eeg后emg）
-    data = np.load(filename, allow_pickle=True)
+    data: NDArray = np.load(filename, allow_pickle=True)
     eeg_data = data.item()["eeg"].transpose(0, 2, 1)
     emg_data = data.item()["emg"].transpose(0, 2, 1)
     label = data.item()["label"]
@@ -297,7 +298,7 @@ def getdata_GCN_LSTM_0_2(filename, split_num=4):
 
 
 # 用于GCN_LSTM实现EEG运动意图检测的数据，取前4s的脑电数据(x,32,2000)，然后前两秒为休息0，后两秒为运动1
-def get_data_check_intend(filename):
+def get_data_check_intend(filename: str):
     eeg_epochs, _, label = get_data(filename)
     
     # 对数据进行0.05~50的滤波
