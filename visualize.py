@@ -1,12 +1,12 @@
 import sys
-from typing import cast, Any, Union, TypeVar, Generic, Annotated, Literal, NamedTuple, Optional
+from typing import cast, Any, Union, TypeVar, Generic, NamedTuple, Optional, Tuple, List, Dict
 import numpy as np
-import numpy.typing as npt
+from numpy.typing import NDArray
 from igraph import Graph
 from plotly.graph_objects import Scatter3d, Scatter, Layout, Figure
 
-Coordinate2D = tuple[float, float]
-Coordinate3D = tuple[float, float, float]
+Coordinate2D = Tuple[float, float]
+Coordinate3D = Tuple[float, float, float]
 
 TCoordinate = TypeVar("TCoordinate", Coordinate2D, Coordinate3D)
 class NodeMeta(Generic[TCoordinate]):
@@ -16,19 +16,16 @@ class NodeMeta(Generic[TCoordinate]):
         self.group = group
 
 class PlotStyle(NamedTuple):
-    node: dict[str, Any] = dict()
-    edge: dict[str, Any] = dict()
-    axis: dict[str, Any] = dict()
-    layout: dict[str, Any] = dict()
+    node: Dict[str, Any] = dict()
+    edge: Dict[str, Any] = dict()
+    axis: Dict[str, Any] = dict()
+    layout: Dict[str, Any] = dict()
 
-DType = TypeVar("DType", bound=np.generic)
-Matrix = Annotated[npt.NDArray[DType], Literal["N", "N"]]
-
-def visualize_connectivity(
-    connectivity_matrix: Matrix[np.float64],
-    node_metas: list[NodeMeta[TCoordinate]],
+def visualize(
+    connectivity_matrix: NDArray,
+    node_metas: List[NodeMeta[TCoordinate]],
     connectivity_threshold: float = sys.float_info.epsilon,
-    slider_step: Union[int, list[float]] = 20,
+    slider_step: Union[int, List[float]] = 20,
     style: PlotStyle = PlotStyle()) -> Figure:
     """
     Visualize connectivity matrix with node metas
@@ -70,7 +67,7 @@ def visualize_connectivity(
             nodes += [(node_metas[i].name, graph_layout[i], node_metas[i].group)] #type: ignore
     
     # Set default style
-    def set_if_none(target: dict[str, Any], key: str, value: Any):
+    def set_if_none(target: Dict[str, Any], key: str, value: Any):
         if key not in target or target[key] is None:
             target[key] = value
     set_if_none(style.node, "symbol", "circle")
@@ -89,7 +86,7 @@ def visualize_connectivity(
     set_if_none(style.layout, "margin", dict(t=32, b=32, l=32, r=32))
     
     # Create figure traces
-    def parse_color(color: str) -> tuple[int, int, int]:
+    def parse_color(color: str) -> Tuple[int, int, int]:
         if color.startswith("#"):
             color = color[1:]
             if len(color) == 3:
@@ -102,14 +99,14 @@ def visualize_connectivity(
             raise ValueError("Color must be in hex or rgb format")
     
     base_color = parse_color(style.edge["color"])
-    def get_edge_attributes(edge: tuple[int, int, float]):
+    def get_edge_attributes(edge: Tuple[int, int, float]):
         [i, j, w] = edge
         attributes= dict(
             mode="lines",
-            line=dict(**(style.edge | dict(
+            line={**style.edge, **dict(
                 width=w * style.edge["width"],
                 color=f"rgba({base_color[0]}, {base_color[1]}, {base_color[2]}, {(0 if w == 0 else (0.5 + w / 2)):.2f})"
-            ))),
+            )},
             x=[nodes[i][1][0], nodes[j][1][0], None],
             y=[nodes[i][1][1], nodes[j][1][1], None],
             text=[f"{(w * 100):.2f}%"],
@@ -120,9 +117,12 @@ def visualize_connectivity(
         return attributes
         
     plotType = Scatter3d if dimension == 3 else Scatter
+    marker_style = style.node.copy()
+    if all([node[2] is not None for node in nodes]):
+        marker_style["color"] = [node[2] for node in nodes]
     node_trace = plotType(
         mode="markers",
-        marker=dict(**(style.node | dict(color=[node[2] for node in nodes]))),
+        marker=marker_style,
         x=[node[1][0] for node in nodes],
         y=[node[1][1] for node in nodes],
         z=[node[1][2] for node in nodes] if dimension == 3 else None,
