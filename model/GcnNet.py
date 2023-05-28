@@ -70,3 +70,6 @@ class GcnNet(Module):
         x = self.linear2(x)
 
         return x
+    
+    def get_matrix(self):
+        return self.gcn_layer.linear1.weight.detach()

@@ -218,7 +218,7 @@ if __name__ == "__main__":
             epochs_num=200,
         )
         print(f"Time Cost:{time.time() - start_time:.5f}s")
-        trained_adj = gcn_net_model.get_A()
+        trained_adj = gcn_net_model.get_matrix()
         # 将trained_adj保存到excel中
         workbook = xlwt.Workbook()
         sheet = workbook.add_sheet("sheet1")
