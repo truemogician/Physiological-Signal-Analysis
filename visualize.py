@@ -120,14 +120,18 @@ def visualize(
     marker_style = style.node.copy()
     if all([node[2] is not None for node in nodes]):
         marker_style["color"] = [node[2] for node in nodes]
+    marker_mode = "markers"
+    if marker_style["always_show_text"] == True:
+        marker_mode += "+text"
+        del marker_style["always_show_text"]
     node_trace = plotType(
-        mode="markers",
+        mode=marker_mode,
         marker=marker_style,
         x=[node[1][0] for node in nodes],
         y=[node[1][1] for node in nodes],
         z=[node[1][2] for node in nodes] if dimension == 3 else None,
         text=[node[0] for node in nodes],
-        hoverinfo="text"
+        hoverinfo="text" if marker_mode == "markers" else "none"
     )
     edge_traces = [plotType(**get_edge_attributes(edge)) for edge in edges]
         
