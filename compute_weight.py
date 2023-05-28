@@ -10,19 +10,18 @@ from preprocess_data import *
 from connectivity.PMI import SPMI_1epoch
 from utils.common import get_data_files
 
-def compute_weight(data_path: str, out_path: str):
+def compute_weight(data_path: str, out_path: str, trial_num = 5):
     train, _ = get_data_movement_intention(data_path)
     eeg = cast(Tensor, train.dataset.tensors[0])
-    data = cast(NDArray, eeg[0].numpy())
     weight = []
-    for i in range(data.shape[1]):
-        epoch = data[:, i, :]
-        pmi = SPMI_1epoch(epoch, 5, 1)
+    for i in range(min(trial_num, eeg.shape[0])):
+        data = cast(NDArray, eeg[i].numpy())
+        pmi = SPMI_1epoch(data, 5, 1)
         weight.append(pmi)
 
     workbook = xlwt.Workbook()
     for i in range(len(weight)):
-        sheet = workbook.add_sheet(f"sheet_{i}")
+        sheet = workbook.add_sheet(f"trial_{i}")
         data = list(weight[i])
         for row in range(len(data)):
             for col in range(len(data[0])):
