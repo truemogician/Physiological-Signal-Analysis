@@ -12,12 +12,13 @@ import xlwt
 from model.GcnNet import GcnNet
 from preprocess_data import *
 from connectivity.PMI import *
-from utils import get_data_files
+from utils import get_data_files, get_device
 
 
-def test(model, test_iter, criteria, device):
+def test(model, test_iter, criteria):
     running_loss, running_corrects, data_num = 0.0, 0, 0
     model.eval()
+    device = get_device()
     model = model.to(device)
 
     for eeg, label in test_iter:
@@ -47,7 +48,6 @@ def train(
     test_iter: DataLoader[Tuple[Tensor, Tensor]], 
     optimizer: torch.optim.Optimizer, 
     criteria, 
-    device: torch.device, 
     epochs_num=200):
     result = {
         "train_loss": [],
@@ -55,6 +55,7 @@ def train(
         "test_loss": [],
         "test_acc": [],
     }
+    device = get_device()
     model = model.to(device)
     print(next(model.parameters()).device)
     max_acc = 0.0
@@ -63,9 +64,7 @@ def train(
         running_loss, running_corrects, data_num = 0.0, 0, 0
         model.train()
         for eeg, label in train_iter:
-            # print("eeg_shape:", eeg.shape)
             # 预测
-
             # emg = torch.squeeze(emg, dim=1)
             # eeg = torch.cat((eeg, emg), 1)
             eeg = eeg.to(device).to(torch.float32)
@@ -160,7 +159,6 @@ def focal_loss_with_regularization(model: GcnNet, y_pred, y_true):
 
 
 if __name__ == "__main__":
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     data_files = get_data_files()
     if len(sys.argv) > 1:
         indices = [int(i) for i in sys.argv[1:]]
@@ -203,7 +201,6 @@ if __name__ == "__main__":
         gcn_net_model = GcnNet(
             node_emb_dims=800,
             adj_mat_array=adj_mat_array[0],
-            device=device,
             num_classes=3,
         )
         train_iter, test_iter = get_data_check_intend(data_file)
@@ -217,7 +214,6 @@ if __name__ == "__main__":
             optimizer=optimizer,
             # 交叉熵损失函数加上l2正则化
             criteria=focal_loss_with_regularization,  # nn.CrossEntropyLoss(),
-            device=device,
             epochs_num=200,
         )
         print(f"Time Cost:{time.time() - start_time:.5f}s")

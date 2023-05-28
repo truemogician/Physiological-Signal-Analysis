@@ -7,6 +7,8 @@ from torch.nn import Module
 from torch.nn.parameter import Parameter
 from numpy.typing import NDArray
 
+from ..utils import get_device
+
 
 class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)
     def __init__(self, 
@@ -16,7 +18,7 @@ class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)
         assert len(adj_mat_array.shape) == 2 and node_num == adj_mat_array.shape[1], "adj_mat_array must be a square matrix"
         super(Gcn, self).__init__()
         self.node_emb_dim = node_emb_dim
-        self.linear1 = nn.Linear(node_num, node_num)
+        self.linear1 = nn.Linear(node_num, node_num, device = get_device())
         self.linear1.weight = Parameter(torch.from_numpy(adj_mat_array.T))
         self.linear2: Union[nn.Linear, None] = None
         self.ReLU = nn.ReLU()
@@ -32,28 +34,27 @@ class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)
 
 class GcnNet(Module):
     def __init__(self, 
-        device: torch.device,
         node_emb_dims: int,
         adj_mat_array: NDArray,
         num_classes: int):
         assert len(adj_mat_array.shape) == 2 and adj_mat_array.shape[0] == adj_mat_array.shape[1], "adj_mat_array must be a square matrix"
         super(GcnNet, self).__init__()
-        self.device = device
         self.node_emb_dims = node_emb_dims
         self.adj_mat_array = adj_mat_array
         self.node_num = adj_mat_array.shape[0]
         self.num_classes = num_classes
+        device = get_device()
         self.gcn_layer = Gcn(self.adj_mat_array, self.node_emb_dims)
-        self.conv1 = nn.Conv1d(self.node_num, self.node_num, 3)
+        self.conv1 = nn.Conv1d(self.node_num, self.node_num, 3, device=device)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout()
-        self.linear1 = nn.Linear((self.node_emb_dims) * self.node_num, self.node_emb_dims)
-        self.linear2 = nn.Linear(self.node_emb_dims, self.num_classes)
+        self.linear1 = nn.Linear(self.node_emb_dims * self.node_num, self.node_emb_dims, device=device)
+        self.linear2 = nn.Linear(self.node_emb_dims, self.num_classes, device=device)
 
     def forward(self, node_att_array: Tensor):
         shape = node_att_array.shape
         batch_size = shape[0]
-        x = torch.empty((0, self.node_num, self.node_emb_dims)).to(self.device)
+        x = torch.empty((0, self.node_num, self.node_emb_dims)).to(get_device())
         for i in range(batch_size):
             temp = self.gcn_layer(node_att_array[i])
             temp = torch.unsqueeze(temp, dim=0)
