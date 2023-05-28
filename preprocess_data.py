@@ -30,14 +30,14 @@ class ElectrodeMetadata(NamedTuple):
 eeg_electrode_metadata = {k: ElectrodeMetadata(v["group"], tuple(v["coordinate"])) for k, v in eeg_electrode_metadata.items()}
 
 def get_data(filename: str):
-    # 1.加载数据（先eeg后emg）
+    # 加载数据（先eeg后emg）
     data: NDArray = np.load(filename, allow_pickle=True)
     eeg_data = data.item()["eeg"].transpose(0, 2, 1)
     emg_data = data.item()["emg"].transpose(0, 2, 1)
     label = data.item()["label"]
     label = np.array(label, dtype=int)
 
-    # 2.构建事件
+    # 构建事件
     sfreq_eeg = 500
     sfreq_emg = 4000
 
@@ -48,13 +48,11 @@ def get_data(filename: str):
         sfreq=sfreq_eeg
     )
     info_emg = mne.create_info(
-        # 1-三角前肌，2-肱桡肌，3-指屈肌，4-指总伸肌，5-骨间背肌
-        # 1-anterior deltoid, 2-brachioradialis, 3-flexor digitorum, 4-common extensor digitorum,
-        # 5-first dorsal interosseus
         ch_names=emg_channel_names,
         ch_types='eeg',
         sfreq=sfreq_emg
     )
+    
     # 创建事件
     events = np.array([[idx, 0, label] for idx, label in enumerate(label)])
     event_id = dict(weight_165=1, weight_330=2, weight_660=4)
@@ -316,7 +314,7 @@ def getdata_GCN_LSTM_0_2(filename, split_num=4):
     return lstm_train_loader, lstm_test_loader
 
 
-def get_data_movement_intention(
+def get_data_motion_intention(
     filename: str,
     test_size = 0.3,
     batch_size = 10,

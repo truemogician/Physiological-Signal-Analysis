@@ -1,0 +1,35 @@
+{
+	"model": {
+		"node_embedding_dim": 800,
+		"class_num": 2
+	},
+	"train": {
+		"batch_size": 10,
+		"test_size": 0.3,
+		"iteration_num": 20,
+		"learning_rate": 0.0001,
+		"weight_decay": 0.001
+	},
+	"plot": {
+		"loss": {
+			"filename": "loss.png"
+		},
+		"accuracy": {
+			"filename": "accuracy.png"
+		},
+		"connectivity": {
+			"filename": "trained_connectivity_matrix.html",
+			"styles": {
+				"node": {
+					"always_show_text": true
+				},
+				"layout": {
+					"width": 1226,
+					"height": 809,
+					"paper_bgcolor": "#222",
+					"plot_bgcolor": "#222"
+				}
+			}
+		}
+	}
+}

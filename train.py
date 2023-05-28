@@ -1,7 +1,8 @@
 import time
 import sys
 import os
-from typing import Tuple
+import json
+from typing import Tuple, Dict
 
 from matplotlib import pyplot as plt
 from torch import Tensor
@@ -14,7 +15,7 @@ from model.GcnNet import GcnNet
 from preprocess_data import *
 from connectivity.PMI import *
 from compute_weight import compute_weight
-from visualize import NodeMeta, visualize
+from visualize import NodeMeta, PlotStyle, visualize
 from utils.common import get_data_files
 from utils.torch import get_device
 
@@ -125,12 +126,12 @@ def train(
     plt.plot(result["train_loss"], label="train_loss")
     plt.plot(result["test_loss"], label="test_loss")
     plt.legend()
-    plt.savefig(f"result/sub-{subj:02d}/loss_l2_0.001_filter_005_50.png")
+    plt.savefig(f"result/sub-{subj:02d}/{config['plot']['loss']['filename']}")
     plt.figure()
     plt.plot(result["train_acc"], label="train_acc")
     plt.plot(result["test_acc"], label=f"test_acc,mean={test_acc_mean:.5f}")
     plt.legend()
-    plt.savefig(f"result/sub-{subj:02d}/acc_l2_0.001_filter_005_50.png")
+    plt.savefig(f"result/sub-{subj:02d}/{config['plot']['accuracy']['filename']}")
     return max_acc
 
 
@@ -161,6 +162,7 @@ def focal_loss_with_regularization(model: GcnNet, y_pred, y_true):
 
 if __name__ == "__main__":
     data_files = get_data_files()
+    config: Dict = json.load(open("config/motion_intention.json", "r"))
     if len(sys.argv) > 1:
         indices = [int(i) for i in sys.argv[1:]]
         data_files = {k: v for k, v in data_files.items() if k in indices}
@@ -200,25 +202,36 @@ if __name__ == "__main__":
         adjacent_matrixs = np.array(adjacent_matrixs, dtype=np.float32)
 
         # GCN_NET model
+        model_conf = config["model"]
         gcn_net_model = GcnNet(
-            node_emb_dims=800,
+            node_embedding_dims=model_conf["node_embedding_dim"],
             adj_mat_array=adjacent_matrixs[0],
-            class_num=3,
+            class_num=model_conf["class_num"],
         )
-        train_iter, test_iter = get_data_movement_intention(data_file)
-        optimizer = torch.optim.Adam(gcn_net_model.parameters(), lr=0.0001, weight_decay=1e-3)
-
+        
+        train_conf = config["train"]
+        train_iter, test_iter = get_data_motion_intention(
+            data_file,
+            batch_size=train_conf["batch_size"],
+            test_size=train_conf["test_size"]
+        )
+        optimizer = torch.optim.Adam(
+            gcn_net_model.parameters(),
+            lr=train_conf["learning_rate"],
+            weight_decay=train_conf["weight_decay"]
+        )
         train(
             subj=subj,
             model=gcn_net_model,
             train_iter=train_iter,
             test_iter=test_iter,
             optimizer=optimizer,
-            # 交叉熵损失函数加上l2正则化
             criteria=focal_loss_with_regularization,  # nn.CrossEntropyLoss(),
-            epochs_num=200,
+            iteration_num=train_conf["iteration_num"]
         )
         print(f"Time Cost :{time.time() - start_time:.5f}s")
+        
+        conn_plot_conf = config["plot"]["connectivity"]
         trained_adj = gcn_net_model.get_matrix()
         # 将trained_adj保存到excel中
         workbook = xlwt.Workbook()
@@ -227,5 +240,13 @@ if __name__ == "__main__":
             for col in range(trained_adj.shape[1]):
                 sheet.write(row, col, trained_adj[row][col].item())
         workbook.save(f"result/sub-{subj:02d}/trained_connectivity_matrix.xlsx")
-        figure = visualize(trained_adj.cpu().numpy(), [NodeMeta(n) for n in eeg_channel_names])
-        figure.write_html(f"result/sub-{subj:02d}/trained_connectivity_matrix.html")
+        metadata = [NodeMeta(n, v.coordinate, v.group) for n, v in eeg_electrode_metadata.items()]
+        figure = visualize(
+            trained_adj.cpu().numpy(), 
+            metadata, 
+            style=PlotStyle(
+                node=conn_plot_conf["styles"]["node"],
+                layout=conn_plot_conf["styles"]["layout"]
+            )
+        )
+        figure.write_html(f"result/sub-{subj:02d}/{conn_plot_conf['filename']}")

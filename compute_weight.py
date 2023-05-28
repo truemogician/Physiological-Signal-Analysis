@@ -11,7 +11,7 @@ from connectivity.PMI import SPMI_1epoch
 from utils.common import get_data_files
 
 def compute_weight(data_path: str, out_path: str, trial_num = 5):
-    train, _ = get_data_movement_intention(data_path)
+    train, _ = get_data_motion_intention(data_path)
     eeg = cast(Tensor, train.dataset.tensors[0])
     weight = []
     for i in range(min(trial_num, eeg.shape[0])):
