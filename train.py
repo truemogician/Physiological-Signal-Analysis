@@ -37,7 +37,7 @@ def test(model, test_iter, criteria):
         running_corrects += torch.sum(pred == label)
     running_loss = running_loss / data_num
     running_acc = running_corrects / data_num
-    print(f"test_loss:{running_loss.item():.5f},test_acc:{running_acc.item():.5f}")
+    print(f"[Test]  loss: {running_loss.item():.4f}, acc: {running_acc.item():.4f}")
 
     return running_loss, running_acc
 
@@ -87,7 +87,7 @@ def train(
         # if (epoch+1) % 10 == 0:
         #     graph_weight = model.get_weight()
         # print(graph_weight)
-        print("{} epoch,train_loss:{:.5f},train_acc:{:.5f}".format(
+        print("{} epoch\n[Train] loss: {:.4f}, acc: {:.4f}".format(
             epoch,
             (running_loss / data_num).item(),
             (running_corrects / data_num).item()

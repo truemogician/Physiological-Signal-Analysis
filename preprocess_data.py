@@ -38,7 +38,7 @@ def get_data(filename: str):
     )
     # 创建事件
     events = np.array([[idx, 0, label] for idx, label in enumerate(label)])
-    event_id = dict(weight1=1, weight2=2, weight3=4)
+    event_id = dict(weight_165=1, weight_330=2, weight_660=4)
 
     emg_epochs = mne.EpochsArray(emg_data, info_emg, events, 0, event_id)
     eeg_epochs = mne.EpochsArray(eeg_data, info_eeg, events, 0, event_id)
