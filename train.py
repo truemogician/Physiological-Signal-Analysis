@@ -2,162 +2,87 @@ import time
 import sys
 import os
 import json
-from typing import Tuple, Dict
+from typing import cast, Tuple, Dict, Callable, Optional
 
-from matplotlib import pyplot as plt
+import torch
 from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
+import numpy as np
+from matplotlib import pyplot as plt
 import xlrd
 import xlwt
 
 from model.GcnNet import GcnNet
-from preprocess_data import *
-from connectivity.PMI import *
-from initialize_matrix import initialize_matrix
-from visualize import NodeMeta, PlotStyle, visualize
 from utils.common import get_data_files
 from utils.torch import get_device
+from initialize_matrix import initialize_matrix
+from preprocess_data import get_data_motion_intention, eeg_electrode_metadata
+from run_model import run_model
+from visualize import NodeMeta, PlotStyle, visualize
 
 
-def test(model, test_iter, criteria):
-    running_loss, running_corrects, data_num = 0.0, 0, 0
-    model.eval()
-    device = get_device()
-    model = model.to(device)
-
-    for eeg, label in test_iter:
-        # emg = torch.squeeze(emg, dim=1)
-        # eeg = torch.cat((eeg, emg), 1)
-        eeg = eeg.to(device).to(torch.float32)
-        label = label.to(device)
-        out = model(eeg)
-
-        pred = torch.argmax(out, dim=-1)
-        loss = criteria(model, out, label)
-        batch_size = eeg.size(0)
-        running_loss += loss * batch_size
-        data_num += batch_size
-        running_corrects += torch.sum(pred == label)
-    running_loss = running_loss / data_num
-    running_acc = running_corrects / data_num
-    print(f"[Test]  loss: {running_loss.item():.4f}, acc: {running_acc.item():.4f}")
-
-    return running_loss, running_acc
-
-
-def train(
-    subj: int, 
-    model: GcnNet, 
+def train_model(
+    model: nn.Module, 
     train_iter: DataLoader[Tuple[Tensor, Tensor]], 
-    test_iter: DataLoader[Tuple[Tensor, Tensor]], 
     optimizer: torch.optim.Optimizer, 
-    criteria, 
-    iteration_num=200):
-    result = {
-        "train_loss": [],
-        "train_acc": [],
-        "test_loss": [],
-        "test_acc": [],
-    }
+    criterion: Callable[[Tensor, Tensor], Tensor],
+    iteration_num = 200,
+    test_iter: Optional[DataLoader[Tuple[Tensor, Tensor]]] = None):
+    result = dict(
+        train_loss=[],
+        train_acc=[]
+    )
+    if test_iter is not None:
+        result["test_loss"] = []
+        result["test_acc"] = []
     device = get_device()
-    print(f"Using device {device}")
     model = model.to(device)
-    max_acc = 0.0
 
     for iter in range(iteration_num):
-        running_loss, running_corrects, data_num = 0.0, 0, 0
+        train_loss, train_acc, data_num = 0.0, 0, 0
         model.train()
-        for eeg, label in train_iter:
+        for data, label in train_iter:
             # 预测
             # emg = torch.squeeze(emg, dim=1)
             # eeg = torch.cat((eeg, emg), 1)
-            eeg = eeg.to(device).to(torch.float32)
-            label = label.to(device)
-            out = model(eeg)
+            data = cast(Tensor, data.to(torch.float32).to(device))
+            label = cast(Tensor, label.to(device))
+            out = cast(Tensor, model(data))
             pred = torch.argmax(out, dim=-1)
 
             # 更新
             optimizer.zero_grad()
-            loss = criteria(model, out, label)
+            loss = criterion(out, label)
             loss.backward()
             optimizer.step()
 
             # 记录参数
-            batch_size = eeg.size(0)
-            running_loss += loss * batch_size
-            running_corrects += torch.sum(pred == label.data)
+            batch_size = data.size(0)
+            train_loss += loss * batch_size
+            train_acc += torch.sum(pred == label.data)
             data_num += batch_size
-        # if (epoch+1) % 10 == 0:
-        #     graph_weight = model.get_weight()
-        # print(graph_weight)
-        print("{} iteration\n[Train] loss: {:.4f}, acc: {:.4f}".format(
-            iter,
-            (running_loss / data_num).item(),
-            (running_corrects / data_num).item()
-        ))
-        result["train_loss"].append((running_loss / data_num).item())
-        result["train_acc"].append((running_corrects / data_num).item())
-        test_loss, test_acc = test(model, test_iter, criteria, device)
-        result["test_loss"].append(test_loss.item())
-        result["test_acc"].append(test_acc.item())
-        # 把result保存到excel中
-        if max_acc < test_acc:
-            max_acc = test_acc
-    
-    length = len(result["test_acc"])
-    test_acc_mean = sum(result["test_acc"][length // 2 :]) / len(result["test_acc"][length // 2 :])
-    result["test_acc"].append(test_acc_mean)
-    workbook = xlwt.Workbook()
-    sheet = workbook.add_sheet(f"sheet_{iter}")
-    sheet.write(0, 0, "train_loss")
-    sheet.write(0, 1, "train_acc")
-    sheet.write(0, 2, "test_loss")
-    sheet.write(0, 3, "test_acc")
-    for i in range(len(result["train_loss"])):
-        sheet.write(i + 1, 0, result["train_loss"][i])
-        sheet.write(i + 1, 1, result["train_acc"][i])
-        sheet.write(i + 1, 2, result["test_loss"][i])
-        sheet.write(i + 1, 3, result["test_acc"][i])
-    workbook.save(f"result/sub-{subj:02d}/train_stats.xlsx")
-    
-    # 画出acc和loss的曲线
-    plt.figure()
-    plt.plot(result["train_loss"], label="train_loss")
-    plt.plot(result["test_loss"], label="test_loss")
-    plt.legend()
-    plt.savefig(f"result/sub-{subj:02d}/{config['plot']['loss']['filename']}")
-    plt.figure()
-    plt.plot(result["train_acc"], label="train_acc")
-    plt.plot(result["test_acc"], label=f"test_acc,mean={test_acc_mean:.5f}")
-    plt.legend()
-    plt.savefig(f"result/sub-{subj:02d}/{config['plot']['accuracy']['filename']}")
-    return max_acc
-
-
-# L2 正则化
-def L2Loss(model: GcnNet, alpha: float):
-    l2_loss = torch.tensor(0.0, requires_grad=True)
-    for name, parma in model.named_parameters():
-        if "bias" not in name:
-            l2_loss += + (0.5 * alpha * torch.sum(torch.pow(parma, 2)))
-    return l2_loss
-
-
-def L1Loss(model: GcnNet, beta: float):
-    l1_loss = torch.tensor(0.0, requires_grad=True)
-    for name, param in model.named_parameters():
-        if "bias" not in name:
-            l1_loss += + beta * torch.sum(torch.abs(param))
-    return l1_loss
-
-
-def focal_loss_with_regularization(model: GcnNet, y_pred, y_true):
-    focal = nn.CrossEntropyLoss()(y_pred, y_true.long())
-    # l1_loss = L1Loss(model, 0.001)
-    # l2_loss = L2Loss(model, 0.001)
-    total_loss = focal  # + l2_loss  # + l1_loss
-    return total_loss
+        
+        train_loss = train_loss/ data_num
+        train_acc = train_acc / data_num
+        result["train_loss"].append(train_loss.item())
+        result["train_acc"].append(train_acc.item())
+        
+        if test_iter is None:
+            print(f"[{iter:02d}] train_acc: {train_acc:.4f}, train_loss: {train_loss:.2f}")
+        else:
+            test_loss, test_acc = run_model(model, test_iter, criterion)
+            result["test_loss"].append(test_loss.item())
+            result["test_acc"].append(test_acc.item())
+            print("[{:02d}] train_acc: {:.4f}, test_acc: {:.4f}, train_loss: {:.2f}, test_loss: {:.2f}".format(
+                iter,
+                train_acc.item(),
+                test_acc.item(),
+                train_loss.item(),
+                test_loss.item()
+            ))
+        
+    return result
 
 
 if __name__ == "__main__":
@@ -169,7 +94,6 @@ if __name__ == "__main__":
     for [subj, data_file] in data_files.items():
         print(f"Training model using data from subject {subj}...")
         result_dir = f"result/sub-{subj:02d}"
-        start_time = time.time()
         
         # 初始化关联性矩阵
         initial_matrix_path = f"{result_dir}/initial_matrix.xlsx"
@@ -204,16 +128,51 @@ if __name__ == "__main__":
             lr=train_conf["learning_rate"],
             weight_decay=train_conf["weight_decay"]
         )
-        train(
-            subj=subj,
-            model=gcn_net_model,
-            train_iter=train_iter,
-            test_iter=test_iter,
-            optimizer=optimizer,
-            criteria=focal_loss_with_regularization,  # nn.CrossEntropyLoss(),
-            iteration_num=train_conf["iteration_num"]
+
+        # 训练模型
+        iter_num = train_conf["iteration_num"]
+        def loss_function(out: Tensor, target: Tensor):
+            focal = nn.CrossEntropyLoss()(out, target.long())
+            # l1_loss = L1Loss(model, 0.001)
+            # l2_loss = L2Loss(model, 0.001)
+            total_loss = focal  # + l2_loss  # + l1_loss
+            return total_loss
+        start_time = time.time()
+        result = train_model(
+            gcn_net_model, 
+            train_iter, 
+            optimizer, 
+            loss_function, 
+            iter_num, 
+            test_iter
         )
-        print(f"Time Cost :{time.time() - start_time:.5f}s")
+        print(f"Training time: {time.time() - start_time:.2f}s")
+        
+        # 将训练结果保存到excel中
+        workbook = xlwt.Workbook()
+        sheet = workbook.add_sheet(f"sheet")
+        sheet.write(0, 0, "train_loss")
+        sheet.write(0, 1, "train_acc")
+        sheet.write(0, 2, "test_loss")
+        sheet.write(0, 3, "test_acc")
+        for i in range(len(result["train_loss"])):
+            sheet.write(i + 1, 0, result["train_loss"][i])
+            sheet.write(i + 1, 1, result["train_acc"][i])
+            sheet.write(i + 1, 2, result["test_loss"][i])
+            sheet.write(i + 1, 3, result["test_acc"][i])
+        workbook.save(f"{result_dir}/train_stats.xlsx")
+        
+        # 画出acc和loss的曲线
+        plt.figure()
+        plt.plot(result["train_loss"], label="train_loss")
+        plt.plot(result["test_loss"], label="test_loss")
+        plt.legend()
+        plt.savefig(f"{result_dir}/{config['plot']['loss']['filename']}")
+        plt.figure()
+        plt.plot(result["train_acc"], label="train_acc")
+        plt.plot(result["test_acc"], label=f"test_acc")
+        plt.legend()
+        plt.savefig(f"{result_dir}/{config['plot']['accuracy']['filename']}")
         
         conn_plot_conf = config["plot"]["connectivity"]
         trained_matrix = gcn_net_model.get_matrix()
