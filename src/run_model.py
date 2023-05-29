@@ -1,6 +1,5 @@
 import json
 import sys
-from pathlib import Path
 from typing import Tuple, Callable, Dict
 
 import torch
@@ -40,20 +39,23 @@ def run_model(
 
 if __name__ == "__main__":
     args = sys.argv[1:]
+    data_files = get_data_files()
     model_file = args[0]
-    data_file = args[1]
+    indices = [int(i) for i in args[1:]]
+    data_files = {k: v for k, v in data_files.items() if k in indices}
     
     model = torch.load(model_file)
     
     config: Dict = json.load(open(project_root / "config/motion_intention_detection.json", "r"))
     train_conf = config["train"]
-    dataset = WayEegGalDataset(data_file)
-    data, labels = dataset.prepare_for_motion_intention_detection()
-    loader = create_data_loader(data, labels, batch_size=train_conf["batch_size"])
     
-    loss, acc = run_model(
-        model, 
-        loader, 
-        lambda out, target: nn.CrossEntropyLoss()(out, target.long())
-    )
-    print(f"Loss: {loss:.4f}, Acc: {acc:.4f}")
+    for subj, data_file in data_files.items():
+        dataset = WayEegGalDataset(data_file)
+        data, labels = dataset.prepare_for_motion_intention_detection()
+        loader = create_data_loader(data, labels, batch_size=train_conf["batch_size"]) 
+        loss, acc = run_model(
+            model, 
+            loader, 
+            lambda out, target: nn.CrossEntropyLoss()(out, target.long())
+        )
+        print(f"[Subject {subj:02d}] Loss: {loss:.4f}, Acc: {acc:.4f}")
