@@ -9,6 +9,8 @@ import mne
 from utils.common import project_root
 
 
+mne.set_log_level("WARNING")
+
 class ElectrodeMetadata(NamedTuple):
     group: int
     coordinate: Tuple[float, float, float]
