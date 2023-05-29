@@ -2,10 +2,10 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Train",
+			"name": "Train Model",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/train.py",
+			"program": "${workspaceFolder}/src/train.py",
 			"args": ["1"],
 			"console": "integratedTerminal",
 			"justMyCode": true
@@ -14,7 +14,7 @@
 			"name": "Initialize Matrix",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/initialize_matrix.py",
+			"program": "${workspaceFolder}/src/initialize_matrix.py",
 			"args": ["1"],
 			"console": "integratedTerminal",
 			"justMyCode": true

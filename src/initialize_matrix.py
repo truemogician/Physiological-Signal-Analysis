@@ -7,7 +7,8 @@ from numpy.typing import NDArray
 
 from dataset.way_eeg_gal import WayEegGalDataset
 from connectivity.PMI import SPMI_1epoch
-from utils.common import get_data_files
+from utils.common import get_data_files, project_root
+
 
 def initialize_matrix(data_path: str, out_path: Union[str, None] = None, trial_num = 5):
     dataset = WayEegGalDataset(data_path)
@@ -42,4 +43,4 @@ if __name__ == '__main__':
         data_files = {k: v for k, v in data_files.items() if k in indices}
     for [i, f] in data_files.items():
         print(f"Processing subject {i}...")
-        initialize_matrix(f, f"result/sub-{i:02}/initial_matrix.xlsx")
+        initialize_matrix(f, project_root/ f"result/sub-{i:02}/initial_matrix.xlsx")

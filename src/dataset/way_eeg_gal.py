@@ -6,6 +6,8 @@ import numpy as np
 from numpy.typing import NDArray
 import mne
 
+from utils.common import project_root
+
 
 class ElectrodeMetadata(NamedTuple):
     group: int
@@ -25,7 +27,7 @@ class WayEegGalDataset:
     
     eeg_electrode_metadata = {
         k: ElectrodeMetadata(v["group"], tuple(v["coordinate"]))
-        for k, v in json.load(open(Path(__file__).parent.parent / "data/eeg_electrodes.json", "r")).items()
+        for k, v in json.load(open(project_root / "data/eeg_electrodes.json", "r")).items()
     }
     
     def __init__(self, filename: str, load = True, allow_cache = True):

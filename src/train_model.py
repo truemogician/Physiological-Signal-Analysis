@@ -2,6 +2,7 @@ import time
 import sys
 import os
 import json
+from pathlib import Path
 from typing import cast, Tuple, Dict, Callable, Optional
 
 import torch
@@ -16,7 +17,7 @@ import xlwt
 from model.GcnNet import GcnNet
 from dataset.way_eeg_gal import WayEegGalDataset
 from dataset.utils import create_train_test_loader
-from utils.common import get_data_files
+from utils.common import get_data_files, project_root
 from utils.torch import get_device
 from initialize_matrix import initialize_matrix
 from run_model import run_model
@@ -87,17 +88,17 @@ def train_model(
 
 
 if __name__ == "__main__":
+    config: Dict = json.load(open(project_root / "config/motion_intention_detection.json", "r"))
     data_files = get_data_files()
-    config: Dict = json.load(open("config/motion_intention.json", "r"))
     if len(sys.argv) > 1:
         indices = [int(i) for i in sys.argv[1:]]
         data_files = {k: v for k, v in data_files.items() if k in indices}
     for [subj, data_file] in data_files.items():
         print(f"Training model using data from subject {subj}...")
-        result_dir = f"result/sub-{subj:02d}"
+        result_dir = project_root / f"result/sub-{subj:02d}"
         
         # 初始化关联性矩阵
-        initial_matrix_path = f"{result_dir}/initial_matrix.xlsx"
+        initial_matrix_path = result_dir / "initial_matrix.xlsx"
         if not os.path.exists(initial_matrix_path):
             initialize_matrix(data_file, initial_matrix_path)
         workbook = xlrd.open_workbook(initial_matrix_path)
@@ -162,19 +163,19 @@ if __name__ == "__main__":
             sheet.write(i + 1, 1, result["train_acc"][i])
             sheet.write(i + 1, 2, result["test_loss"][i])
             sheet.write(i + 1, 3, result["test_acc"][i])
-        workbook.save(f"{result_dir}/train_stats.xlsx")
+        workbook.save(result_dir / "train_stats.xlsx")
         
         # 画出acc和loss的曲线
         plt.figure()
         plt.plot(result["train_loss"], label="train_loss")
         plt.plot(result["test_loss"], label="test_loss")
         plt.legend()
-        plt.savefig(f"{result_dir}/{config['plot']['loss']['filename']}")
+        plt.savefig(result_dir / config["plot"]["loss"]["filename"])
         plt.figure()
         plt.plot(result["train_acc"], label="train_acc")
         plt.plot(result["test_acc"], label=f"test_acc")
         plt.legend()
-        plt.savefig(f"{result_dir}/{config['plot']['accuracy']['filename']}")
+        plt.savefig(result_dir / config["plot"]["accuracy"]["filename"])
         
         conn_plot_conf = config["plot"]["connectivity"]
         trained_matrix = gcn_net_model.get_matrix()
@@ -185,7 +186,7 @@ if __name__ == "__main__":
         for row in range(trained_matrix.shape[0]):
             for col in range(trained_matrix.shape[1]):
                 sheet.write(row, col, trained_matrix[row][col].item())
-        workbook.save(f"{result_dir}/trained_matrix.xlsx")
+        workbook.save(result_dir / "trained_matrix.xlsx")
         
         # 画出关联性矩阵
         metadata = [
@@ -201,7 +202,7 @@ if __name__ == "__main__":
                 layout=conn_plot_conf["styles"]["layout"]
             )
         )
-        figure.write_html(f"{result_dir}/{conn_plot_conf['filename']}")
+        figure.write_html(result_dir / conn_plot_conf["filename"])
         
         # 保存模型
-        torch.save(gcn_net_model, f"{result_dir}/model.pt")
+        torch.save(gcn_net_model, result_dir / "model.pt")
