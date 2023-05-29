@@ -1,5 +1,5 @@
 import sys
-from typing import Union
+from typing import Union, Optional
 
 import torch
 from torch import Tensor
@@ -13,15 +13,13 @@ from utils.torch import get_device
 
 
 class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)
-    def __init__(self, 
-        adj_mat_array: NDArray,
-        node_emb_dim: int):
-        node_num = adj_mat_array.shape[0]
-        assert len(adj_mat_array.shape) == 2 and node_num == adj_mat_array.shape[1], "adj_mat_array must be a square matrix"
+    def __init__(self, node_emb_dim: int, adjacent_matrix: NDArray):
+        node_num = adjacent_matrix.shape[0]
+        assert len(adjacent_matrix.shape) == 2 and node_num == adjacent_matrix.shape[1], "adj_mat_array must be a square matrix"
         super(Gcn, self).__init__()
         self.node_emb_dim = node_emb_dim
         self.linear1 = nn.Linear(node_num, node_num, device = get_device())
-        self.linear1.weight = Parameter(torch.from_numpy(adj_mat_array.T))
+        self.linear1.weight = Parameter(torch.from_numpy(adjacent_matrix.T))
         self.linear2: Union[nn.Linear, None] = None
         self.ReLU = nn.ReLU()
 
@@ -36,15 +34,14 @@ class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)
 
 
 class GcnNet(Module):
-    def __init__(self, adjacent_matrix: NDArray, node_embedding_dims: int, class_num: int):
+    def __init__(self, node_embedding_dims: int, class_num: int, adjacent_matrix: NDArray):
         assert len(adjacent_matrix.shape) == 2 and adjacent_matrix.shape[0] == adjacent_matrix.shape[1], "adj_mat_array must be a square matrix"
         super(GcnNet, self).__init__()
         self.node_embedding_dims = node_embedding_dims
-        self.adjacent_matrix = adjacent_matrix
         self.node_num = adjacent_matrix.shape[0]
         self.class_num = class_num
         device = get_device()
-        self.gcn_layer = Gcn(self.adjacent_matrix, self.node_embedding_dims)
+        self.gcn_layer = Gcn(self.node_embedding_dims, adjacent_matrix)
         self.conv1 = nn.Conv1d(self.node_num, self.node_num, 3, device=device)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout()

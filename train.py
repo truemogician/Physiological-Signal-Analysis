@@ -188,9 +188,9 @@ if __name__ == "__main__":
         # GCN_NET model
         model_conf = config["model"]
         gcn_net_model = GcnNet(
-            adjacent_matrix=matrix,
             node_embedding_dims=model_conf["node_embedding_dim"],
             class_num=model_conf["class_num"],
+            adjacent_matrix=matrix
         )
         
         train_conf = config["train"]
@@ -238,4 +238,6 @@ if __name__ == "__main__":
             )
         )
         figure.write_html(f"{result_dir}/{conn_plot_conf['filename']}")
-        figure.write_html(f"result/sub-{subj:02d}/{conn_plot_conf['filename']}")
+        
+        # 保存模型
+        torch.save(gcn_net_model.state_dict(), f"{result_dir}/model.pt")
