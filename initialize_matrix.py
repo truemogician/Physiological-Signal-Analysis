@@ -3,16 +3,15 @@ import sys
 from typing import cast, List, Union
 
 import xlwt
-from torch import Tensor
 from numpy.typing import NDArray
 
-from preprocess_data import *
+from dataset.way_eeg_gal import WayEegGalDataset
 from connectivity.PMI import SPMI_1epoch
 from utils.common import get_data_files
 
 def initialize_matrix(data_path: str, out_path: Union[str, None] = None, trial_num = 5):
-    train, _ = get_data_motion_intention(data_path)
-    eeg = cast(Tensor, train.dataset.tensors[0])
+    dataset = WayEegGalDataset(data_path)
+    eeg, _ = dataset.prepare_for_motion_intention_detection()
     matrices: List[NDArray] = []
     for i in range(min(trial_num, eeg.shape[0])):
         data = cast(NDArray, eeg[i].numpy())

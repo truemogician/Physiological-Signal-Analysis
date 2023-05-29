@@ -8,7 +8,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from utils.torch import get_device
-from preprocess_data import get_data_motion_intention
+from dataset.way_eeg_gal import WayEegGalDataset
+from dataset.utils import create_data_loader
 
 
 def run_model(
@@ -44,15 +45,13 @@ if __name__ == "__main__":
     
     config: Dict = json.load(open("config/motion_intention.json", "r"))
     train_conf = config["train"]
-    data_iter, _ = get_data_motion_intention(
-        data_file,
-        batch_size=train_conf["batch_size"],
-        test_size=0
-    )
+    dataset = WayEegGalDataset(data_file)
+    data, labels = dataset.prepare_for_motion_intention_detection()
+    loader = create_data_loader(data, labels, batch_size=train_conf["batch_size"])
     
     loss, acc = run_model(
         model, 
-        data_iter, 
+        loader, 
         lambda out, target: nn.CrossEntropyLoss()(out, target.long())
     )
     print(f"Loss: {loss:.4f}, Acc: {acc:.4f}")

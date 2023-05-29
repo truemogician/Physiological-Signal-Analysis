@@ -14,10 +14,11 @@ import xlrd
 import xlwt
 
 from model.GcnNet import GcnNet
+from dataset.way_eeg_gal import WayEegGalDataset
+from dataset.utils import create_train_test_loader
 from utils.common import get_data_files
 from utils.torch import get_device
 from initialize_matrix import initialize_matrix
-from preprocess_data import get_data_motion_intention, eeg_electrode_metadata
 from run_model import run_model
 from visualize import NodeMeta, PlotStyle, visualize
 
@@ -118,8 +119,9 @@ if __name__ == "__main__":
         )
         
         train_conf = config["train"]
-        train_iter, test_iter = get_data_motion_intention(
-            data_file,
+        dataset = WayEegGalDataset(data_file)
+        train_iter, test_iter = create_train_test_loader(
+            *dataset.prepare_for_motion_intention_detection(),
             batch_size=train_conf["batch_size"],
             test_size=train_conf["test_size"]
         )
@@ -186,7 +188,10 @@ if __name__ == "__main__":
         workbook.save(f"{result_dir}/trained_matrix.xlsx")
         
         # 画出关联性矩阵
-        metadata = [NodeMeta(n, v.coordinate, v.group) for n, v in eeg_electrode_metadata.items()]
+        metadata = [
+            NodeMeta(n, v.coordinate, v.group)
+            for n, v in WayEegGalDataset.eeg_electrode_metadata.items()
+        ]
         figure = visualize(
             trained_matrix.cpu().numpy(), 
             metadata, 
