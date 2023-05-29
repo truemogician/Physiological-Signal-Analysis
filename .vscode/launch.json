@@ -11,10 +11,10 @@
 			"justMyCode": true
 		},
 		{
-			"name": "Compute Weight",
+			"name": "Initialize Matrix",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/compute_weight.py",
+			"program": "${workspaceFolder}/initialize_matrix.py",
 			"args": ["1"],
 			"console": "integratedTerminal",
 			"justMyCode": true

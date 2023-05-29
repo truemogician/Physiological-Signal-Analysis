@@ -14,7 +14,7 @@ import xlwt
 from model.GcnNet import GcnNet
 from preprocess_data import *
 from connectivity.PMI import *
-from compute_weight import compute_weight
+from initialize_matrix import initialize_matrix
 from visualize import NodeMeta, PlotStyle, visualize
 from utils.common import get_data_files
 from utils.torch import get_device
@@ -140,7 +140,7 @@ def L2Loss(model: GcnNet, alpha: float):
     l2_loss = torch.tensor(0.0, requires_grad=True)
     for name, parma in model.named_parameters():
         if "bias" not in name:
-            l2_loss = l2_loss + (0.5 * alpha * torch.sum(torch.pow(parma, 2)))
+            l2_loss += + (0.5 * alpha * torch.sum(torch.pow(parma, 2)))
     return l2_loss
 
 
@@ -148,7 +148,7 @@ def L1Loss(model: GcnNet, beta: float):
     l1_loss = torch.tensor(0.0, requires_grad=True)
     for name, param in model.named_parameters():
         if "bias" not in name:
-            l1_loss = l1_loss + beta * torch.sum(torch.abs(param))
+            l1_loss += + beta * torch.sum(torch.abs(param))
     return l1_loss
 
 
@@ -168,44 +168,28 @@ if __name__ == "__main__":
         data_files = {k: v for k, v in data_files.items() if k in indices}
     for [subj, data_file] in data_files.items():
         print(f"Training model using data from subject {subj}...")
+        result_dir = f"result/sub-{subj:02d}"
         start_time = time.time()
-        adj_path = f"result/sub-{subj:02d}/eeg_initial_weight.xlsx"
-        if not os.path.exists(adj_path):
-            compute_weight(data_file, adj_path)
-        workbook = xlrd.open_workbook(adj_path)
         
-        adjacent_matrixs = []
-        for sheet in workbook.sheets():
-            matrix = [sheet.row_values(i) for i in range(sheet.nrows)]
-            adjacent_matrixs.append(matrix)
-        
-        # 将上三角矩阵转换为对称矩阵
-        for k in range(len(adjacent_matrixs)):
-            for i in range(len(adjacent_matrixs[k])):
-                for j in range(0, i):
-                    adjacent_matrixs[k][i][j] = adjacent_matrixs[k][j][i]
+        # 初始化关联性矩阵
+        initial_matrix_path = f"{result_dir}/initial_matrix.xlsx"
+        if not os.path.exists(initial_matrix_path):
+            initialize_matrix(data_file, initial_matrix_path)
+        workbook = xlrd.open_workbook(initial_matrix_path)
+        sheet = workbook.sheet_by_index(0)
+        matrix = np.array([sheet.row_values(i) for i in range(sheet.nrows)], dtype=np.float32)
 
-        # 随机初始化邻接矩阵为0~2之间的数
+        # 随机初始化邻接矩阵为0~1之间的数
         # for i in range(len(adj_mat_array)):
         #     for j in range(len(adj_mat_array[i])):
         #         for k in range(len(adj_mat_array[i][j])):
-        #             adj_mat_array[i][j][k] = random.uniform(0, 2)
-
-        workbook = xlwt.Workbook()
-        for k in range(len(adjacent_matrixs)):
-            sheet = workbook.add_sheet(f"trial_{k}")
-            for row in range(len(adjacent_matrixs[k])):
-                for col in range(len(adjacent_matrixs[k][row])):
-                    sheet.write(row, col, round(adjacent_matrixs[k][row][col], 5))
-
-        workbook.save(f"result/sub-{subj:02d}/pre_connectivity_matrix.xlsx")
-        adjacent_matrixs = np.array(adjacent_matrixs, dtype=np.float32)
+        #             adj_mat_array[i][j][k] = random.uniform(0, 1)
 
         # GCN_NET model
         model_conf = config["model"]
         gcn_net_model = GcnNet(
+            adjacent_matrix=matrix,
             node_embedding_dims=model_conf["node_embedding_dim"],
-            adj_mat_array=adjacent_matrixs[0],
             class_num=model_conf["class_num"],
         )
         
@@ -232,17 +216,20 @@ if __name__ == "__main__":
         print(f"Time Cost :{time.time() - start_time:.5f}s")
         
         conn_plot_conf = config["plot"]["connectivity"]
-        trained_adj = gcn_net_model.get_matrix()
-        # 将trained_adj保存到excel中
+        trained_matrix = gcn_net_model.get_matrix()
+        
+        # 将trained_matrix保存到excel中
         workbook = xlwt.Workbook()
         sheet = workbook.add_sheet("trial_0")
-        for row in range(trained_adj.shape[0]):
-            for col in range(trained_adj.shape[1]):
-                sheet.write(row, col, trained_adj[row][col].item())
-        workbook.save(f"result/sub-{subj:02d}/trained_connectivity_matrix.xlsx")
+        for row in range(trained_matrix.shape[0]):
+            for col in range(trained_matrix.shape[1]):
+                sheet.write(row, col, trained_matrix[row][col].item())
+        workbook.save(f"{result_dir}/trained_matrix.xlsx")
+        
+        # 画出关联性矩阵
         metadata = [NodeMeta(n, v.coordinate, v.group) for n, v in eeg_electrode_metadata.items()]
         figure = visualize(
-            trained_adj.cpu().numpy(), 
+            trained_matrix.cpu().numpy(), 
             metadata, 
             style=PlotStyle(
                 node=conn_plot_conf["styles"]["node"],
@@ -250,4 +237,5 @@ if __name__ == "__main__":
                 layout=conn_plot_conf["styles"]["layout"]
             )
         )
+        figure.write_html(f"{result_dir}/{conn_plot_conf['filename']}")
         figure.write_html(f"result/sub-{subj:02d}/{conn_plot_conf['filename']}")
