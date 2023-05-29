@@ -199,4 +199,4 @@ if __name__ == "__main__":
         figure.write_html(f"{result_dir}/{conn_plot_conf['filename']}")
         
         # 保存模型
-        torch.save(gcn_net_model.state_dict(), f"{result_dir}/model.pt")
+        torch.save(gcn_net_model, f"{result_dir}/model.pt")

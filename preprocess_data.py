@@ -339,6 +339,11 @@ def get_data_motion_intention(
     label = np.ones((trial_num))
     label[:trial_num//2] = 0
     
+    if test_size == 0:
+        return Data.DataLoader(Data.TensorDataset(torch.tensor(eeg), torch.tensor(label))), None
+    if test_size == 1:
+        return None, Data.DataLoader(Data.TensorDataset(torch.tensor(eeg), torch.tensor(label)))
+    
     # 划分训练集和测试集
     train_eeg, test_eeg, train_label, test_label = train_test_split(eeg, label, test_size=test_size, random_state=15)
     
