@@ -32,6 +32,10 @@ class WayEegGalDataset:
         for k, v in json.load(open(project_root / "data/eeg_electrodes.json", "r")).items()
     }
     
+    eeg_sfreq = 500
+    
+    emg_sfreq = 4000
+    
     def __init__(self, filename: str, load = True, allow_cache = True):
         self.filename = filename
         self.allow_cache = allow_cache
@@ -42,56 +46,60 @@ class WayEegGalDataset:
         data: NDArray = np.load(self.filename, allow_pickle=True)
         eeg_data = data.item()["eeg"].transpose(0, 2, 1)
         emg_data = data.item()["emg"].transpose(0, 2, 1)
-        label = np.array(data.item()["label"], dtype=int)
-
-        # 构建事件
-        sfreq_eeg = 500
-        sfreq_emg = 4000
+        labels = np.array(data.item()["label"], dtype=np.int64)
+        
+        self.eeg_samples = eeg_data.shape[2]
+        self.emg_samples = emg_data.shape[2]
+        self.trial_num = len(labels)
 
         # 创建info结构
         info_eeg = mne.create_info(
             ch_names=WayEegGalDataset.eeg_channel_names,
             ch_types="eeg",
-            sfreq=sfreq_eeg
+            sfreq=WayEegGalDataset.eeg_sfreq
         )
         info_emg = mne.create_info(
             ch_names=WayEegGalDataset.emg_channel_names,
             ch_types="emg",
-            sfreq=sfreq_emg
+            sfreq=WayEegGalDataset.emg_sfreq
         )
         
         # 创建事件
-        events = np.array([[idx, 0, label] for idx, label in enumerate(label)])
+        events = np.array([[idx, 0, label] for idx, label in enumerate(labels)])
         event_id = dict(weight_165=1, weight_330=2, weight_660=4)
         
         self.eeg_epochs = mne.EpochsArray(eeg_data, info_eeg, events, 0, event_id)
         self.emg_epochs = mne.EpochsArray(emg_data, info_emg, events, 0, event_id)
-        self.labels = np.array((label+0.1)/2, dtype=np.int64)
+        self.labels = labels
         
-    def prepare_for_motion_intention_detection(self) -> Tuple[NDArray, NDArray]:
+    def prepare_for_motion_intention_detection(self, interval = 1000) -> Tuple[NDArray, NDArray]:
         '''
         构建用于GCN_LSTM实现EEG运动意图检测的数据。
         具体而言，因为2s时LED灯闪烁开始运动，因此取前4s的脑电数据，其中前2s为静息状态0，后2s为运动状态1。
         输出数据维度为(2x, 32, 1000)，其中x为样本数。
         '''
-        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-motion_intention.npz"
-        if self.allow_cache and cache_file.exists():
+        assert 1000 % interval == 0, "interval must be a divisor of 1000" 
+        use_cache = self.allow_cache and interval == 1000
+        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-motion_intention_detection.npz"
+        if use_cache and cache_file.exists():
             data = np.load(cache_file)
             eeg, labels = data["eeg"], data["labels"]
         else:
             # 对数据进行0.05~50的滤波
             self.eeg_epochs.filter(0.05, h_freq=50)
-            eeg_data = self.eeg_epochs.get_data()[:, :, :2000]
+            eeg = self.eeg_epochs.get_data()
+            eeg = eeg[:, :, :2000] # 0-2s为静息状态，而运动在4-8s之间停止，因此取前4s数据
             
-            # 将数据拆分开
-            eeg = np.concatenate((eeg_data[:, :, :1000], eeg_data[:, :, 1000:]), axis=0)
+            # 将数据重新组合
+            eeg = np.split(eeg, 2000 // interval, axis=2)
+            eeg = np.concatenate(eeg, axis=0)
             
             # 构建运动意图标签
-            trial_num = eeg.shape[0]
-            labels = np.zeros((trial_num))
-            labels[trial_num // 2:] = 1
+            new_trial_num = eeg.shape[0]
+            labels = np.ones(new_trial_num)
+            labels[:self.trial_num * 1000 // interval] = 0
             
-            if self.allow_cache:
+            if use_cache:
                 np.savez(cache_file, eeg=eeg, labels=labels)
         
         return eeg, labels
