@@ -14,7 +14,7 @@ from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
 from dataset.way_eeg_gal import Dataset
 from dataset.utils import create_data_loader, create_train_test_loader
-from utils.common import project_root, get_data_files, load_config
+from utils.common import project_root, get_data_files, load_config, ensure_dir
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
 from initialize_matrix import initialize_matrix
 
@@ -26,6 +26,7 @@ path_conf = config["path"]
 def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     dataset = Dataset(data_file, allow_cache=allow_cache)
     eeg, labels = dataset.prepare_for_motion_intention_detection()
+    ensure_dir(result_dir)
     
     # 初始化关联性矩阵
     initial_matrix_path = result_dir / path_conf["initial_matrix"]
@@ -75,7 +76,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     print(f"Training time: {time.time() - start_time:.2f}s")
     
     # 保存训练统计数据
-    with open(result_dir / path_conf["train_stats"], "w") as f:
+    with open(ensure_dir(result_dir / path_conf["train_stats"]), "w") as f:
         writer = csv.writer(f)
         writer.writerow(["train_loss", "train_acc", "test_loss", "test_acc"])
         for i in range(len(result["train_loss"])):
@@ -91,17 +92,17 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     plt.plot(result["train_loss"], label="train_loss")
     plt.plot(result["test_loss"], label="test_loss")
     plt.legend()
-    plt.savefig(result_dir / path_conf["loss_plot"])
+    plt.savefig(ensure_dir(result_dir / path_conf["plot"]))
     plt.figure()
     plt.plot(result["train_acc"], label="train_acc")
     plt.plot(result["test_acc"], label=f"test_acc")
     plt.legend()
-    plt.savefig(result_dir / path_conf["acc_plot"])
+    plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"]))
     
     trained_matrix = gcn_net_model.get_matrix()
     
     # 保存训练后的关联性矩阵
-    np.savetxt(result_dir / path_conf["trained_matrix"], trained_matrix, delimiter=",")
+    np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, delimiter=",")
     
     # 画出关联性矩阵
     matrix_plot_styles = config["plot"]["matrix"]["styles"]
@@ -118,10 +119,10 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
             layout=matrix_plot_styles["layout"]
         )
     )
-    figure.write_html(result_dir / path_conf["matrix_plot"])
+    figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
     
     # 保存模型
-    torch.save(gcn_net_model, result_dir / path_conf["model"])
+    torch.save(gcn_net_model, ensure_dir(result_dir / path_conf["model"]))
  
 def run(model_file: os.PathLike, data_files: List[os.PathLike]):
     model = torch.load(model_file)
