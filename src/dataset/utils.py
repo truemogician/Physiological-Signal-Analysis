@@ -1,6 +1,5 @@
 from typing import Union
 
-import numpy as np
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 import torch

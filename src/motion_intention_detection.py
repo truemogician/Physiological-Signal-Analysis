@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 
 from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
-from dataset.way_eeg_gal import WayEegGalDataset
+from dataset.way_eeg_gal import Dataset
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, get_data_files, load_config
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
@@ -45,7 +45,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike):
     )
     
     train_conf = config["train"]
-    dataset = WayEegGalDataset(data_file)
+    dataset = Dataset(data_file)
     train_iter, test_iter = create_train_test_loader(
         *dataset.prepare_for_motion_intention_detection(),
         batch_size=train_conf["batch_size"],
@@ -103,7 +103,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike):
     matrix_plot_styles = config["plot"]["matrix"]["styles"]
     metadata = [
         NodeMeta(n, v.coordinate, v.group)
-        for n, v in WayEegGalDataset.eeg_electrode_metadata.items()
+        for n, v in Dataset.eeg_electrode_metadata.items()
     ]
     figure = visualize_matrix(
         trained_matrix.cpu().numpy(), 
@@ -123,7 +123,7 @@ def run(model_file: os.PathLike, data_files: List[os.PathLike]):
     model = torch.load(model_file)
     train_conf = load_config(task)["train"]
     for data_file in data_files:
-        dataset = WayEegGalDataset(data_file)
+        dataset = Dataset(data_file)
         data, labels = dataset.prepare_for_motion_intention_detection()
         loader = create_data_loader(data, labels, batch_size=train_conf["batch_size"]) 
         loss, acc = run_model(

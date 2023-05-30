@@ -4,13 +4,13 @@ from typing import cast, Union
 import numpy as np
 from numpy.typing import NDArray
 
-from dataset.way_eeg_gal import WayEegGalDataset
+from dataset.way_eeg_gal import Dataset
 from connectivity.PMI import SPMI_1epoch
 from utils.common import project_root, get_data_files, load_config
 
 
 def initialize_matrix(data_path: str, out_path: Union[str, None] = None):
-    dataset = WayEegGalDataset(data_path)
+    dataset = Dataset(data_path)
     eeg, _ = dataset.prepare_for_motion_intention_detection()
     first_trial = cast(NDArray, eeg[0])
     spmi = SPMI_1epoch(first_trial, 5, 1)

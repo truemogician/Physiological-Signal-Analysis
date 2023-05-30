@@ -16,7 +16,7 @@ class ElectrodeMetadata(NamedTuple):
     coordinate: Tuple[float, float, float]
 
 
-class WayEegGalDataset:
+class Dataset:
     eeg_channel_names = [
         "Fp1", "Fp2", "F7", "F3", "Fz",
         "F4", "F8", "FC5", "FC1", "FC2", "FC6", "T7",
@@ -54,14 +54,14 @@ class WayEegGalDataset:
 
         # 创建info结构
         info_eeg = mne.create_info(
-            ch_names=WayEegGalDataset.eeg_channel_names,
+            ch_names=Dataset.eeg_channel_names,
             ch_types="eeg",
-            sfreq=WayEegGalDataset.eeg_sfreq
+            sfreq=Dataset.eeg_sfreq
         )
         info_emg = mne.create_info(
-            ch_names=WayEegGalDataset.emg_channel_names,
+            ch_names=Dataset.emg_channel_names,
             ch_types="emg",
-            sfreq=WayEegGalDataset.emg_sfreq
+            sfreq=Dataset.emg_sfreq
         )
         
         # 创建事件
