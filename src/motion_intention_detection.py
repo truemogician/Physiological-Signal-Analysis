@@ -149,13 +149,13 @@ if __name__ == "__main__":
     run_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for running")
     args = parser.parse_args()
 
-    if args["command"] == "train":
-        indices = [int(i) for i in args["subject_indices"]]
+    if args.command == "train":
+        indices = [int(i) for i in args.subject_indices]
         data_files = {k: v for k, v in get_data_files().items() if k in indices}
         for [subj, data_file] in data_files.items():
             print(f"Training model using data from subject {subj}...")
-            train(data_file, project_root / f"result/sub-{subj:02d}" / task, not args["no_cache"])
-    if args["command"] == "run":
-        indices = [int(i) for i in args["subject_indices"]]
+            train(data_file, project_root / f"result/sub-{subj:02d}" / task, not args.no_cache)
+    if args.command == "run":
+        indices = [int(i) for i in args.subject_indices]
         data_files = {k: v for k, v in get_data_files().items() if k in indices}
-        run(args["model_file"], data_files)
+        run(args.model_file, data_files)
