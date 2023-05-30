@@ -34,7 +34,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
         matrix = SPMI_1epoch(eeg[0], 6, 2)
-        np.savetxt(ensure_dir(initial_matrix_path), matrix, delimiter=",")
+        np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
 
     # 随机初始化邻接矩阵为0~1之间的数
     # matrix = np.random.rand(32, 32).astype(np.float32)
@@ -103,7 +103,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     trained_matrix = gcn_net_model.get_matrix().cpu()
     
     # 保存训练后的关联性矩阵
-    np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, delimiter=",")
+    np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",")
     
     # 画出关联性矩阵
     matrix_plot_styles = config["plot"]["matrix"]["styles"]
