@@ -6,10 +6,10 @@ from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from utils.common import get_data_files, load_config
-from utils.torch import get_device
-from dataset.way_eeg_gal import WayEegGalDataset
-from dataset.utils import create_data_loader
+from ..dataset.way_eeg_gal import WayEegGalDataset
+from ..dataset.utils import create_data_loader
+from .common import get_data_files, load_config
+from .torch import get_device
 
 
 def run_model(

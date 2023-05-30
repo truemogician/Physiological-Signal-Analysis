@@ -11,14 +11,14 @@ from torch.utils.data import DataLoader
 import numpy as np
 from matplotlib import pyplot as plt
 
-from model.GcnNet import GcnNet
-from dataset.way_eeg_gal import WayEegGalDataset
-from dataset.utils import create_train_test_loader
-from utils.common import project_root, get_data_files, load_config
-from utils.torch import get_device
+from ..model.GcnNet import GcnNet
+from ..dataset.way_eeg_gal import WayEegGalDataset
+from ..dataset.utils import create_train_test_loader
+from .common import project_root, get_data_files, load_config
+from .torch import get_device
 from initialize_matrix import initialize_matrix
 from run_model import run_model
-from visualize import NodeMeta, PlotStyle, visualize
+from visualize import NodeMeta, PlotStyle, visualize_matrix
 
 
 def train_model(
@@ -183,7 +183,7 @@ if __name__ == "__main__":
             NodeMeta(n, v.coordinate, v.group)
             for n, v in WayEegGalDataset.eeg_electrode_metadata.items()
         ]
-        figure = visualize(
+        figure = visualize_matrix(
             trained_matrix.cpu().numpy(), 
             metadata, 
             style=PlotStyle(

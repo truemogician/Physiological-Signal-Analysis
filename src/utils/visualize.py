@@ -23,7 +23,7 @@ class PlotStyle(NamedTuple):
     font: Dict[str, Any] = dict()
     layout: Dict[str, Any] = dict()
 
-def visualize(
+def visualize_matrix(
     connectivity_matrix: NDArray,
     node_metas: List[NodeMeta[TCoordinate]],
     connectivity_threshold: float = sys.float_info.epsilon,
