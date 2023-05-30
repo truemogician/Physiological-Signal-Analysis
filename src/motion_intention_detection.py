@@ -24,11 +24,15 @@ config = load_config(task)
 path_conf = config["path"]
 
 def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
+    dataset = Dataset(data_file, allow_cache=allow_cache)
+    eeg, labels = dataset.prepare_for_motion_intention_detection()
+    
     # 初始化关联性矩阵
     initial_matrix_path = result_dir / path_conf["initial_matrix"]
-    if not os.path.exists(initial_matrix_path):
-        initialize_matrix(data_file, initial_matrix_path)
-    matrix = np.loadtxt(initial_matrix_path, delimiter=",")
+    if os.path.exists(initial_matrix_path):
+        matrix = np.loadtxt(initial_matrix_path, delimiter=",")
+    else:
+        matrix = initialize_matrix(eeg[0], initial_matrix_path) 
 
     # 随机初始化邻接矩阵为0~1之间的数
     # matrix = np.random.rand(32, 32).astype(np.float32)
@@ -36,7 +40,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     #    for j in range(0, i):
     #        matrix[i, j] = matrix[j, i]
 
-    # GCN_NET model
+    # 构建模型
     model_conf = config["model"]
     gcn_net_model = GcnNet(
         node_embedding_dims=model_conf["node_embedding_dim"],
@@ -45,9 +49,9 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     )
     
     train_conf = config["train"]
-    dataset = Dataset(data_file, allow_cache=allow_cache)
     train_iter, test_iter = create_train_test_loader(
-        *dataset.prepare_for_motion_intention_detection(),
+        eeg,
+        labels,
         batch_size=train_conf["batch_size"],
         test_size=train_conf["test_size"]
     )
