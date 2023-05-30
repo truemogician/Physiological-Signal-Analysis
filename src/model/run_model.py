@@ -5,7 +5,7 @@ from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from .torch import get_device
+from .utils import get_device
 
 
 def run_model(
