@@ -28,5 +28,32 @@
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
+		{
+			"name": "Weight Classification: Train",
+			"type": "python",
+			"request": "launch",
+			"program": "${workspaceFolder}/src/weight_classification.py",
+			"args": ["train", "1"],
+			"console": "integratedTerminal",
+			"justMyCode": true
+		},
+		{
+			"name": "Weight Classification: Train (Cacheless)",
+			"type": "python",
+			"request": "launch",
+			"program": "${workspaceFolder}/src/weight_classification.py",
+			"args": ["train", "1", "--no-cache"],
+			"console": "integratedTerminal",
+			"justMyCode": true
+		},
+		{
+			"name": "Weight Classification: Run",
+			"type": "python",
+			"request": "launch",
+			"program": "${workspaceFolder}/src/weight_classification.py",
+			"args": ["run", "result/sub-01/weight_classification/model.pt", "2"],
+			"console": "integratedTerminal",
+			"justMyCode": true
+		},
 	]
 }

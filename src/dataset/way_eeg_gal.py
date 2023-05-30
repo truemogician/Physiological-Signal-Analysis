@@ -103,3 +103,22 @@ class Dataset:
                 np.savez(cache_file, eeg=eeg, labels=labels)
         
         return eeg, labels
+    
+    def prepare_for_weight_classification(self):
+        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-weight_classification.npz"
+        if self.allow_cache and cache_file.exists():
+            data = np.load(cache_file)
+            emg, labels = data["emg"], data["labels"]
+        else:
+            # 对数据进行10-1000Hz的滤波
+            self.emg_epochs.filter(10, 1000)
+            
+            # 降采样至原采样率的1/4以缩小数据规模
+            self.emg_epochs.resample(Dataset.emg_sfreq / 4)
+            
+            emg = self.emg_epochs.get_data()
+            labels = self.labels           
+            if self.allow_cache:
+                np.savez(cache_file, emg=emg, labels=labels)
+        
+        return emg, labels
