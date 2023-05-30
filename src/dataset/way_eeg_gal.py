@@ -1,6 +1,6 @@
 from pathlib import Path
 import json
-from typing import Tuple, NamedTuple
+from typing import Tuple, NamedTuple, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -79,45 +79,45 @@ class Dataset:
         输出数据维度为(2x, 32, 1000)，其中x为样本数。
         '''
         assert 1000 % interval == 0, "interval must be a divisor of 1000" 
-        use_cache = self.allow_cache and interval == 1000
-        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-motion_intention_detection.npz"
-        if use_cache and cache_file.exists():
+        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-motion_intention_detection({interval}).npz"
+        if self.allow_cache and cache_file.exists():
             data = np.load(cache_file)
             eeg, labels = data["eeg"], data["labels"]
         else:
             # 对数据进行0.05~50的滤波
             self.eeg_epochs.filter(0.05, h_freq=50)
             eeg = self.eeg_epochs.get_data()
-            eeg = eeg[:, :, :2000] # 0-2s为静息状态，而运动在4-8s之间停止，因此取前4s数据
-            
+            eeg = eeg[:, :, :2000] # 0-2s为静息状态，而运动在4-8s之间停止，因此取前4s数据           
             # 将数据重新组合
             eeg = np.split(eeg, 2000 // interval, axis=2)
-            eeg = np.concatenate(eeg, axis=0)
-            
+            eeg = np.concatenate(eeg, axis=0)          
             # 构建运动意图标签
             new_trial_num = eeg.shape[0]
             labels = np.ones(new_trial_num)
             labels[:self.trial_num * 1000 // interval] = 0
             
-            if use_cache:
+            if self.allow_cache:
                 np.savez(cache_file, eeg=eeg, labels=labels)
         
         return eeg, labels
     
-    def prepare_for_weight_classification(self):
-        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-weight_classification.npz"
+    def prepare_for_weight_classification(self, sfreq: Optional[int] = None):
+        assert sfreq is None or sfreq <= Dataset.emg_sfreq, "sfreq must be less than or equal to 4000Hz"
+        if sfreq is None:
+            sfreq = Dataset.emg_sfreq
+        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-weight_classification({sfreq}).npz"
         if self.allow_cache and cache_file.exists():
             data = np.load(cache_file)
             emg, labels = data["emg"], data["labels"]
         else:
             # 对数据进行10-1000Hz的滤波
-            self.emg_epochs.filter(10, 1000)
-            
-            # 降采样至原采样率的1/4以缩小数据规模
-            self.emg_epochs.resample(Dataset.emg_sfreq / 4)
-            
-            emg = self.emg_epochs.get_data()
-            labels = self.labels           
+            self.emg_epochs.filter(10, 1000, picks="emg")    
+            # 降采样
+            if sfreq != Dataset.emg_sfreq:
+                self.emg_epochs.resample(sfreq)         
+            # 去除前2s静息状态的数据
+            emg = self.emg_epochs.get_data()[..., sfreq * 2:]
+            labels = np.vectorize(lambda label: 2 if label == 4 else label - 1)(self.labels)          
             if self.allow_cache:
                 np.savez(cache_file, emg=emg, labels=labels)
         

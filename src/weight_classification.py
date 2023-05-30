@@ -26,7 +26,7 @@ path_conf = config["path"]
 
 def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     dataset = Dataset(data_file, allow_cache=allow_cache)
-    emg, labels = dataset.prepare_for_weight_classification()
+    emg, labels = dataset.prepare_for_weight_classification(config["data"]["sfreq"])
     ensure_dir(result_dir)
     
     # 初始化关联性矩阵
@@ -131,11 +131,10 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
  
 def run(model_file: os.PathLike, data_files: List[os.PathLike]):
     model = torch.load(model_file)
-    train_conf = config["train"]
     for data_file in data_files:
         dataset = Dataset(data_file)
-        data, labels = dataset.prepare_for_motion_intention_detection()
-        loader = create_data_loader(data, labels, batch_size=train_conf["batch_size"]) 
+        data, labels = dataset.prepare_for_weight_classification(config["data"]["sfreq"])
+        loader = create_data_loader(data, labels, batch_size=config["train"]["batch_size"]) 
         loss, acc = run_model(
             model, 
             loader, 
@@ -162,5 +161,5 @@ if __name__ == "__main__":
             train(data_file, project_root / f"result/sub-{subj:02d}" / exp_name, not args.no_cache)
     if args.command == "run":
         indices = [int(i) for i in args.subject_indices]
-        data_files = {k: v for k, v in get_data_files().items() if k in indices}
+        data_files = [v for k, v in get_data_files().items() if k in indices]
         run(args.model_file, data_files)

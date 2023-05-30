@@ -3,6 +3,9 @@
 		"node_embedding_dim": 200,
 		"class_num": 3
 	},
+	"data": {
+		"sfreq": 1000
+	},
 	"train": {
 		"batch_size": 10,
 		"test_size": 0.25,

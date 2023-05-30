@@ -3,6 +3,9 @@
 		"node_embedding_dim": 800,
 		"class_num": 2
 	},
+	"data": {
+		"interval": 1000
+	},
 	"train": {
 		"batch_size": 10,
 		"test_size": 0.25,
