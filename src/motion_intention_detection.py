@@ -1,4 +1,3 @@
-import csv
 import time
 import os
 import sys
@@ -10,6 +9,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from matplotlib import pyplot as plt
+import xlwt
 
 from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
@@ -24,7 +24,7 @@ exp_name = Path(__file__).stem
 config = load_config(exp_name)
 path_conf = config["path"]
 
-def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
+def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True, batch = 1):
     dataset = Dataset(data_file, allow_cache=allow_cache)
     eeg, labels = dataset.prepare_for_motion_intention_detection(config["data"]["interval"])
     ensure_dir(result_dir)
@@ -49,70 +49,85 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     #    for j in range(0, i):
     #        matrix[i, j] = matrix[j, i]
 
-    # 构建模型
     model_conf = config["model"]
-    gcn_net_model = GcnNet(
-        node_embedding_dims=model_conf["node_embedding_dim"],
-        class_num=model_conf["class_num"],
-        adjacent_matrix=matrix
-    )
-    
     train_conf = config["train"]
-    train_iter, test_iter = create_train_test_loader(
-        eeg,
-        labels,
-        batch_size=train_conf["batch_size"],
-        test_size=train_conf["test_size"]
-    )
-    optimizer = torch.optim.Adam(
-        gcn_net_model.parameters(),
-        lr=train_conf["learning_rate"],
-        weight_decay=train_conf["weight_decay"]
-    )
-
-    # 训练模型
-    iter_num = train_conf["iteration_num"]
-    start_time = time.time()
-    result = train_model(
-        gcn_net_model, 
-        train_iter, 
-        optimizer, 
-        lambda out, target: nn.CrossEntropyLoss()(out, target.long()), 
-        iter_num, 
-        test_iter
-    )
-    print(f"Training time: {time.time() - start_time:.2f}s")
+    min_loss = sys.float_info.max
+    stats_workbook = xlwt.Workbook()
+    training_results = []
+    for model_idx in range(batch):
+        if batch > 1:
+            print(f"Training model {model_idx + 1}...")
+        # 构建模型
+        gcn_net_model = GcnNet(
+            node_embedding_dims=model_conf["node_embedding_dim"],
+            class_num=model_conf["class_num"],
+            adjacent_matrix=matrix
+        )
+        # 训练模型
+        iter_num = train_conf["iteration_num"]
+        train_iter, test_iter = create_train_test_loader(
+            eeg,
+            labels,
+            batch_size=train_conf["batch_size"],
+            test_size=train_conf["test_size"]
+        )
+        optimizer = torch.optim.Adam(
+            gcn_net_model.parameters(),
+            lr=train_conf["learning_rate"],
+            weight_decay=train_conf["weight_decay"]
+        )
+        start_time = time.time()
+        result = train_model(
+            gcn_net_model, 
+            train_iter, 
+            optimizer, 
+            lambda out, target: nn.CrossEntropyLoss()(out, target.long()), 
+            iter_num, 
+            test_iter
+        )
+        print(f"Training time: {time.time() - start_time:.2f}s")
+        training_results.append(result)
+        
+        sheet = stats_workbook.add_sheet(f"model-{model_idx}")
+        for col, header in enumerate(["train_loss", "train_acc", "test_loss", "test_acc"]):
+            sheet.write(0, col, header)
+            for row, value in enumerate(result[header]):
+                sheet.write(row + 1, col, value)
+        
+        if result["test_loss"][-1] < min_loss:
+            min_loss = result["test_loss"][-1]
+            best_model_idx = model_idx
+            best_model = gcn_net_model
+            best_result = result
     
     # 保存训练统计数据
-    with open(ensure_dir(result_dir / path_conf["training_stats"]), "w") as f:
-        writer = csv.writer(f)
-        writer.writerow(["train_loss", "train_acc", "test_loss", "test_acc"])
-        for i in range(len(result["train_loss"])):
-            writer.writerow([
-                result["train_loss"][i],
-                result["train_acc"][i],
-                result["test_loss"][i],
-                result["test_acc"][i]
-            ])
+    if batch > 1:
+        stats_workbook.get_sheet(best_model_idx).name += " (best)"
+    stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
     
-    # 画出acc和loss的曲线
+    if batch > 1:
+        print(f"Best: test_acc={best_result['test_acc'][-1]:.4f}, test_loss={best_result['test_loss'][-1]:.4f}")
+        avg_acc = np.mean([result["test_acc"][-1] for result in training_results])
+        avg_loss = np.mean([result["test_loss"][-1] for result in training_results])
+        print(f"Average: test_acc={avg_acc:.4f}, test_loss={avg_loss:.4f}") 
+    
+    # 画出最佳模型的acc和loss的曲线
     plt.figure()
-    plt.plot(result["train_loss"], label="train_loss")
-    plt.plot(result["test_loss"], label="test_loss")
+    plt.plot(best_result["train_loss"], label="train_loss")
+    plt.plot(best_result["test_loss"], label="test_loss")
     plt.legend()
     plt.savefig(ensure_dir(result_dir / path_conf["loss_plot"]))
     plt.figure()
-    plt.plot(result["train_acc"], label="train_acc")
-    plt.plot(result["test_acc"], label=f"test_acc")
+    plt.plot(best_result["train_acc"], label="train_acc")
+    plt.plot(best_result["test_acc"], label=f"test_acc")
     plt.legend()
     plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"]))
     
-    trained_matrix = gcn_net_model.get_matrix().cpu()
-    
-    # 保存训练后的关联性矩阵
+    # 保存最佳模型的关联性矩阵
+    trained_matrix = best_model.get_matrix().cpu() 
     np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",")
     
-    # 画出关联性矩阵
+    # 最佳模型关联性矩阵可视化
     matrix_plot_styles = config["plot"]["matrix"]["styles"]
     metadata = [
         NodeMeta(n, v.coordinate, v.group)
@@ -129,8 +144,8 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     )
     figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
     
-    # 保存模型
-    torch.save(gcn_net_model, ensure_dir(result_dir / path_conf["model"]))
+    # 保存最佳模型
+    torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
  
 def run(model_file: os.PathLike, data_files: List[os.PathLike]):
     model = torch.load(model_file)
@@ -151,6 +166,7 @@ if __name__ == "__main__":
     train_parser = sub_parasers.add_parser("train", help="Train model")
     train_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for training")
     train_parser.add_argument("--no-cache", action="store_true", help="Whether to use cache")
+    train_parser.add_argument("--batch", type=int, default="1", help="Time the model will be trained")
     run_parser = sub_parasers.add_parser("run", help="Run model")
     run_parser.add_argument("model_file", help="Path to model file")
     run_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for running")
@@ -161,7 +177,7 @@ if __name__ == "__main__":
         data_files = {k: v for k, v in get_data_files().items() if k in indices}
         for [subj, data_file] in data_files.items():
             print(f"Training model using data from subject {subj}...")
-            train(data_file, project_root / f"result/sub-{subj:02d}" / exp_name, not args.no_cache)
+            train(data_file, project_root / f"result/sub-{subj:02d}" / exp_name, not args.no_cache, args.batch)
     if args.command == "run":
         indices = [int(i) for i in args.subject_indices]
         data_files = [v for k, v in get_data_files().items() if k in indices]

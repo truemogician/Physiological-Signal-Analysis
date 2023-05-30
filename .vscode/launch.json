@@ -6,7 +6,7 @@
 			"type": "python",
 			"request": "launch",
 			"program": "${workspaceFolder}/src/motion_intention_detection.py",
-			"args": ["train", "1"],
+			"args": ["train", "1", "--batch=8"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
