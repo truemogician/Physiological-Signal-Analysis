@@ -11,11 +11,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from model.GcnNet import GcnNet
+from model.utils import train_model, run_model
 from dataset.way_eeg_gal import WayEegGalDataset
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, get_data_files, load_config
-from utils.run_model import run_model
-from utils.train_model import train_model
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
 from initialize_matrix import initialize_matrix
 
