@@ -23,7 +23,7 @@ task = "motion_intention_detection"
 config = load_config(task)
 path_conf = config["path"]
 
-def train(data_file: os.PathLike, result_dir: os.PathLike):
+def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     # 初始化关联性矩阵
     initial_matrix_path = result_dir / path_conf["initial_matrix"]
     if not os.path.exists(initial_matrix_path):
@@ -45,7 +45,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike):
     )
     
     train_conf = config["train"]
-    dataset = Dataset(data_file)
+    dataset = Dataset(data_file, allow_cache=allow_cache)
     train_iter, test_iter = create_train_test_loader(
         *dataset.prepare_for_motion_intention_detection(),
         batch_size=train_conf["batch_size"],
@@ -138,6 +138,7 @@ if __name__ == "__main__":
     sub_parasers = parser.add_subparsers(dest="command")
     train_parser = sub_parasers.add_parser("train", help="Train model")
     train_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for training")
+    train_parser.add_argument("--no-cache", action="store_true", help="Whether to use cache")
     run_parser = sub_parasers.add_parser("run", help="Run model")
     run_parser.add_argument("model_file", help="Path to model file")
     run_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for running")
@@ -148,7 +149,7 @@ if __name__ == "__main__":
         data_files = {k: v for k, v in get_data_files().items() if k in indices}
         for [subj, data_file] in data_files.items():
             print(f"Training model using data from subject {subj}...")
-            train(data_file, project_root / f"result/sub-{subj:02d}" / task)
+            train(data_file, project_root / f"result/sub-{subj:02d}" / task, not args["no_cache"])
     if args["command"] == "run":
         indices = [int(i) for i in args["subject_indices"]]
         data_files = {k: v for k, v in get_data_files().items() if k in indices}
