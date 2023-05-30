@@ -2,20 +2,20 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Train Model",
+			"name": "Motion Intention Detection: Train",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/train.py",
-			"args": ["1"],
+			"program": "${workspaceFolder}/src/motion_intention_detection.py",
+			"args": ["train", "1", "--no-cache"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
 		{
-			"name": "Initialize Matrix",
+			"name": "Motion Intention Detection: Run",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/initialize_matrix.py",
-			"args": ["1"],
+			"program": "${workspaceFolder}/src/motion_intention_detection.py",
+			"args": ["run", "result/sub-01/motion_intention_detection/model.pt", "2"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},

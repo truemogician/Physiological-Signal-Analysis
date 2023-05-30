@@ -1,4 +1,3 @@
-import sys
 from typing import Tuple, Callable
 
 import torch
@@ -6,9 +5,6 @@ from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from ..dataset.way_eeg_gal import WayEegGalDataset
-from ..dataset.utils import create_data_loader
-from .common import get_data_files, load_config
 from .torch import get_device
 
 
@@ -35,26 +31,3 @@ def run_model(
     test_loss = test_loss / data_num
     test_acc = test_acc / data_num
     return test_loss, test_acc
-
-if __name__ == "__main__":
-    args = sys.argv[1:]
-    data_files = get_data_files()
-    model_file = args[0]
-    indices = [int(i) for i in args[1:]]
-    data_files = {k: v for k, v in data_files.items() if k in indices}
-    
-    model = torch.load(model_file)
-    
-    task = "motion_intention_detection"
-    train_conf = load_config(task)["train"]
-    
-    for subj, data_file in data_files.items():
-        dataset = WayEegGalDataset(data_file)
-        data, labels = dataset.prepare_for_motion_intention_detection()
-        loader = create_data_loader(data, labels, batch_size=train_conf["batch_size"]) 
-        loss, acc = run_model(
-            model, 
-            loader, 
-            lambda out, target: nn.CrossEntropyLoss()(out, target.long())
-        )
-        print(f"[Subject {subj:02d}] Loss: {loss:.4f}, Acc: {acc:.4f}")
