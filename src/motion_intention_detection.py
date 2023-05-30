@@ -76,7 +76,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     print(f"Training time: {time.time() - start_time:.2f}s")
     
     # 保存训练统计数据
-    with open(ensure_dir(result_dir / path_conf["train_stats"]), "w") as f:
+    with open(ensure_dir(result_dir / path_conf["training_stats"]), "w") as f:
         writer = csv.writer(f)
         writer.writerow(["train_loss", "train_acc", "test_loss", "test_acc"])
         for i in range(len(result["train_loss"])):
@@ -92,14 +92,14 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     plt.plot(result["train_loss"], label="train_loss")
     plt.plot(result["test_loss"], label="test_loss")
     plt.legend()
-    plt.savefig(ensure_dir(result_dir / path_conf["plot"]))
+    plt.savefig(ensure_dir(result_dir / path_conf["loss_plot"]))
     plt.figure()
     plt.plot(result["train_acc"], label="train_acc")
     plt.plot(result["test_acc"], label=f"test_acc")
     plt.legend()
     plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"]))
     
-    trained_matrix = gcn_net_model.get_matrix()
+    trained_matrix = gcn_net_model.get_matrix().cpu()
     
     # 保存训练后的关联性矩阵
     np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, delimiter=",")
@@ -111,7 +111,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
         for n, v in Dataset.eeg_electrode_metadata.items()
     ]
     figure = visualize_matrix(
-        trained_matrix.cpu().numpy(), 
+        trained_matrix.numpy(), 
         metadata, 
         style=PlotStyle(
             node=matrix_plot_styles["node"],
