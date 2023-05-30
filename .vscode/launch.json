@@ -6,6 +6,15 @@
 			"type": "python",
 			"request": "launch",
 			"program": "${workspaceFolder}/src/motion_intention_detection.py",
+			"args": ["train", "1"],
+			"console": "integratedTerminal",
+			"justMyCode": true
+		},
+		{
+			"name": "Motion Intention Detection: Train (Cacheless)",
+			"type": "python",
+			"request": "launch",
+			"program": "${workspaceFolder}/src/motion_intention_detection.py",
 			"args": ["train", "1", "--no-cache"],
 			"console": "integratedTerminal",
 			"justMyCode": true
