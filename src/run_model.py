@@ -1,13 +1,12 @@
-import json
 import sys
-from typing import Tuple, Callable, Dict
+from typing import Tuple, Callable
 
 import torch
 from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from utils.common import project_root, get_data_files
+from utils.common import get_data_files, load_config
 from utils.torch import get_device
 from dataset.way_eeg_gal import WayEegGalDataset
 from dataset.utils import create_data_loader
@@ -46,8 +45,8 @@ if __name__ == "__main__":
     
     model = torch.load(model_file)
     
-    config: Dict = json.load(open(project_root / "config/motion_intention_detection.json", "r"))
-    train_conf = config["train"]
+    task = "motion_intention_detection"
+    train_conf = load_config(task)["train"]
     
     for subj, data_file in data_files.items():
         dataset = WayEegGalDataset(data_file)

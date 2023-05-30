@@ -1,9 +1,8 @@
+import csv
 import time
 import sys
 import os
-import json
-from pathlib import Path
-from typing import cast, Tuple, Dict, Callable, Optional
+from typing import cast, Tuple, Callable, Optional
 
 import torch
 from torch import Tensor
@@ -11,13 +10,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import numpy as np
 from matplotlib import pyplot as plt
-import xlrd
-import xlwt
 
 from model.GcnNet import GcnNet
 from dataset.way_eeg_gal import WayEegGalDataset
 from dataset.utils import create_train_test_loader
-from utils.common import get_data_files, project_root
+from utils.common import project_root, get_data_files, load_config
 from utils.torch import get_device
 from initialize_matrix import initialize_matrix
 from run_model import run_model
@@ -88,28 +85,28 @@ def train_model(
 
 
 if __name__ == "__main__":
-    config: Dict = json.load(open(project_root / "config/motion_intention_detection.json", "r"))
+    task = "motion_intention_detection"
+    config = load_config(task)
+    path_conf = config["path"]
     data_files = get_data_files()
     if len(sys.argv) > 1:
         indices = [int(i) for i in sys.argv[1:]]
         data_files = {k: v for k, v in data_files.items() if k in indices}
     for [subj, data_file] in data_files.items():
         print(f"Training model using data from subject {subj}...")
-        result_dir = project_root / f"result/sub-{subj:02d}"
+        result_dir = project_root / f"result/sub-{subj:02d}" / task
         
         # 初始化关联性矩阵
-        initial_matrix_path = result_dir / "initial_matrix.xlsx"
+        initial_matrix_path = result_dir / path_conf["initial_matrix"]
         if not os.path.exists(initial_matrix_path):
             initialize_matrix(data_file, initial_matrix_path)
-        workbook = xlrd.open_workbook(initial_matrix_path)
-        sheet = workbook.sheet_by_index(0)
-        matrix = np.array([sheet.row_values(i) for i in range(sheet.nrows)], dtype=np.float32)
+        matrix = np.loadtxt(initial_matrix_path, delimiter=",")
 
         # 随机初始化邻接矩阵为0~1之间的数
-        # for i in range(len(adj_mat_array)):
-        #     for j in range(len(adj_mat_array[i])):
-        #         for k in range(len(adj_mat_array[i][j])):
-        #             adj_mat_array[i][j][k] = random.uniform(0, 1)
+        # matrix = np.random.rand(32, 32).astype(np.float32)
+        # for i in range(matrix.shape[0]):
+        #    for j in range(0, i):
+        #        matrix[i, j] = matrix[j, i]
 
         # GCN_NET model
         model_conf = config["model"]
@@ -151,44 +148,37 @@ if __name__ == "__main__":
         )
         print(f"Training time: {time.time() - start_time:.2f}s")
         
-        # 将训练结果保存到excel中
-        workbook = xlwt.Workbook()
-        sheet = workbook.add_sheet(f"sheet")
-        sheet.write(0, 0, "train_loss")
-        sheet.write(0, 1, "train_acc")
-        sheet.write(0, 2, "test_loss")
-        sheet.write(0, 3, "test_acc")
-        for i in range(len(result["train_loss"])):
-            sheet.write(i + 1, 0, result["train_loss"][i])
-            sheet.write(i + 1, 1, result["train_acc"][i])
-            sheet.write(i + 1, 2, result["test_loss"][i])
-            sheet.write(i + 1, 3, result["test_acc"][i])
-        workbook.save(result_dir / "train_stats.xlsx")
+        # 保存训练统计数据
+        with open(result_dir / path_conf["train_stats"], "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(["train_loss", "train_acc", "test_loss", "test_acc"])
+            for i in range(len(result["train_loss"])):
+                writer.writerow([
+                    result["train_loss"][i],
+                    result["train_acc"][i],
+                    result["test_loss"][i],
+                    result["test_acc"][i]
+                ])
         
         # 画出acc和loss的曲线
         plt.figure()
         plt.plot(result["train_loss"], label="train_loss")
         plt.plot(result["test_loss"], label="test_loss")
         plt.legend()
-        plt.savefig(result_dir / config["plot"]["loss"]["filename"])
+        plt.savefig(result_dir / path_conf["loss_plot"])
         plt.figure()
         plt.plot(result["train_acc"], label="train_acc")
         plt.plot(result["test_acc"], label=f"test_acc")
         plt.legend()
-        plt.savefig(result_dir / config["plot"]["accuracy"]["filename"])
+        plt.savefig(result_dir / path_conf["acc_plot"])
         
-        conn_plot_conf = config["plot"]["connectivity"]
         trained_matrix = gcn_net_model.get_matrix()
         
-        # 将trained_matrix保存到excel中
-        workbook = xlwt.Workbook()
-        sheet = workbook.add_sheet("trial_0")
-        for row in range(trained_matrix.shape[0]):
-            for col in range(trained_matrix.shape[1]):
-                sheet.write(row, col, trained_matrix[row][col].item())
-        workbook.save(result_dir / "trained_matrix.xlsx")
+        # 保存训练后的关联性矩阵
+        np.savetxt(result_dir / path_conf["trained_matrix"], trained_matrix, delimiter=",")
         
         # 画出关联性矩阵
+        matrix_plot_styles = config["plot"]["matrix"]["styles"]
         metadata = [
             NodeMeta(n, v.coordinate, v.group)
             for n, v in WayEegGalDataset.eeg_electrode_metadata.items()
@@ -197,12 +187,12 @@ if __name__ == "__main__":
             trained_matrix.cpu().numpy(), 
             metadata, 
             style=PlotStyle(
-                node=conn_plot_conf["styles"]["node"],
-                font=conn_plot_conf["styles"]["font"],
-                layout=conn_plot_conf["styles"]["layout"]
+                node=matrix_plot_styles["node"],
+                font=matrix_plot_styles["font"],
+                layout=matrix_plot_styles["layout"]
             )
         )
-        figure.write_html(result_dir / conn_plot_conf["filename"])
+        figure.write_html(result_dir / path_conf["matrix_plot"])
         
         # 保存模型
-        torch.save(gcn_net_model, result_dir / "model.pt")
+        torch.save(gcn_net_model, result_dir / path_conf["model"])

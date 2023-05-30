@@ -11,14 +11,7 @@
 		"weight_decay": 0.001
 	},
 	"plot": {
-		"loss": {
-			"filename": "loss.png"
-		},
-		"accuracy": {
-			"filename": "accuracy.png"
-		},
-		"connectivity": {
-			"filename": "trained_matrix.html",
+		"matrix": {
 			"styles": {
 				"node": {
 					"always_show_text": true
@@ -35,5 +28,14 @@
 				}
 			}
 		}
+	},
+	"path": {
+		"acc_plot": "plot/acc.png",
+		"loss_plot": "plot/loss.png",
+		"matrix_plot": "plot/matrix.html",
+		"initial_matrix": "table/initial_matrix.csv",
+		"trained_matrix": "table/trained_matrix.csv",
+		"training_stats": "table/training_stats.csv",
+		"model": "model.pt"
 	}
 }
