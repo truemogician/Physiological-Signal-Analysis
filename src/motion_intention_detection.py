@@ -20,8 +20,8 @@ from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
 from connectivity.PMI import SPMI_1epoch
 
 
-task = "motion_intention_detection"
-config = load_config(task)
+exp_name = Path(__file__).stem
+config = load_config(exp_name)
 path_conf = config["path"]
 
 def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
@@ -134,7 +134,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
  
 def run(model_file: os.PathLike, data_files: List[os.PathLike]):
     model = torch.load(model_file)
-    train_conf = load_config(task)["train"]
+    train_conf = config["train"]
     for data_file in data_files:
         dataset = Dataset(data_file)
         data, labels = dataset.prepare_for_motion_intention_detection()
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         data_files = {k: v for k, v in get_data_files().items() if k in indices}
         for [subj, data_file] in data_files.items():
             print(f"Training model using data from subject {subj}...")
-            train(data_file, project_root / f"result/sub-{subj:02d}" / task, not args.no_cache)
+            train(data_file, project_root / f"result/sub-{subj:02d}" / exp_name, not args.no_cache)
     if args.command == "run":
         indices = [int(i) for i in args.subject_indices]
         data_files = {k: v for k, v in get_data_files().items() if k in indices}
