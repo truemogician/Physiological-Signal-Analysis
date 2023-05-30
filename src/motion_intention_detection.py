@@ -16,7 +16,7 @@ from dataset.way_eeg_gal import Dataset
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, get_data_files, load_config, ensure_dir
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
-from initialize_matrix import initialize_matrix
+from connectivity.PMI import SPMI_1epoch
 
 
 task = "motion_intention_detection"
@@ -33,7 +33,8 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     if os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
-        matrix = initialize_matrix(eeg[0], initial_matrix_path) 
+        matrix = SPMI_1epoch(eeg[0], 6, 2)
+        np.savetxt(ensure_dir(initial_matrix_path), matrix, delimiter=",")
 
     # 随机初始化邻接矩阵为0~1之间的数
     # matrix = np.random.rand(32, 32).astype(np.float32)
