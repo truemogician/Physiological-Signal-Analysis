@@ -15,7 +15,7 @@ from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
 from dataset.way_eeg_gal import Dataset
 from dataset.utils import create_data_loader, create_train_test_loader
-from utils.common import project_root, get_data_files, load_config, ensure_dir
+from utils.common import project_root, get_data_files, load_config, ensure_dir, save_to_sheet
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
 from connectivity.PMI import SPMI_1epoch
 
@@ -64,7 +64,6 @@ def train(
     train_conf = config["train"]
     min_loss = sys.float_info.max
     max_acc = 0
-    stats_workbook = xlwt.Workbook()
     training_results = []
     for idx in range(batch):
         if batch > 1:
@@ -98,13 +97,7 @@ def train(
             test_iter
         )
         print(f"Training time: {time.time() - start_time:.2f}s")
-        training_results.append(result)
-        
-        sheet = stats_workbook.add_sheet(f"model-{idx}")
-        for col, header in enumerate(["train_loss", "train_acc", "test_loss", "test_acc"]):
-            sheet.write(0, col, header)
-            for row, value in enumerate(result[header]):
-                sheet.write(row + 1, col, value)
+        training_results.append(result)   
         
         if result["test_loss"][-1] < min_loss:
             min_loss = result["test_loss"][-1]
@@ -119,16 +112,28 @@ def train(
             max_acc_result = result
     
     # 保存训练统计数据
-    stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
-    
+    result_headers = ["train_loss", "train_acc", "test_loss", "test_acc"]
+    stats_workbook = xlwt.Workbook()
+    for i in range(batch):
+        sheet_name = f"model-{i}"
+        if batch > 1:
+            if i == best_model_idx:
+                sheet_name += " (min_loss)"
+            if i == max_acc_model_idx:
+                sheet_name += " (max_acc)"
+        matrix = np.stack([training_results[i][header] for header in result_headers])
+        save_to_sheet(stats_workbook, sheet_name, matrix.T, result_headers)  
     if batch > 1:
-        stats_workbook.get_sheet(best_model_idx).name += " (min_loss)"
-        stats_workbook.get_sheet(max_acc_model_idx).name += " (max_acc)"
+        average_result = {
+            header: [np.mean([r[header][i] for r in training_results]) for i in range(iter_num)]
+            for header in result_headers
+        }
+        matrix = np.stack([average_result[header] for header in result_headers])
+        save_to_sheet(stats_workbook, "average", matrix.T, result_headers) 
         print(f"Min Loss: test_acc={best_result['test_acc'][-1]:.4f}, test_loss={best_result['test_loss'][-1]:.4f}")
         print(f"Max Acc: test_acc={max_acc_result['test_acc'][-1]:.4f}, test_loss={max_acc_result['test_loss'][-1]:.4f}")
-        avg_acc = np.mean([result["test_acc"][-1] for result in training_results])
-        avg_loss = np.mean([result["test_loss"][-1] for result in training_results])
-        print(f"Average: test_acc={avg_acc:.4f}, test_loss={avg_loss:.4f}") 
+        print(f"Average: test_acc={average_result['test_acc'][-1]:.4f}, test_loss={average_result['test_loss'][-1]:.4f}")      
+    stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
     
     # 画出最佳模型的acc和loss的曲线
     plt.figure()
