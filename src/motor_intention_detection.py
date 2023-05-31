@@ -31,11 +31,11 @@ def train(
     batch = 1):   
     data_files = data_file if isinstance(data_file, list) else [data_file]
     dataset = Dataset(data_files[0], allow_cache=allow_cache)
-    eeg, labels = dataset.prepare_for_motion_intention_detection(config["data"]["interval"])
+    eeg, labels = dataset.prepare_for_motor_intention_detection(config["data"]["interval"])
     matrix_trial = eeg[0]
     for df in data_files[1:]:
         dataset = Dataset(df, allow_cache=allow_cache)
-        eeg_, labels_ = dataset.prepare_for_motion_intention_detection(config["data"]["interval"])
+        eeg_, labels_ = dataset.prepare_for_motor_intention_detection(config["data"]["interval"])
         eeg = np.concatenate((eeg, eeg_), axis=0)
         labels = np.concatenate((labels, labels_), axis=0)
         matrix_trial = np.concatenate((matrix_trial, eeg_[0]), axis=1)
@@ -175,7 +175,7 @@ def run(model_file: os.PathLike, data_files: List[os.PathLike]):
     model = torch.load(model_file)
     for data_file in data_files:
         dataset = Dataset(data_file)
-        data, labels = dataset.prepare_for_motion_intention_detection(config["data"]["interval"])
+        data, labels = dataset.prepare_for_motor_intention_detection(config["data"]["interval"])
         loader = create_data_loader(data, labels, batch_size=config["train"]["batch_size"]) 
         loss, acc = run_model(
             model, 

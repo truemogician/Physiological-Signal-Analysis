@@ -2,29 +2,29 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Motion Intention Detection: Train",
+			"name": "Motor Intention Detection: Train",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/motion_intention_detection.py",
+			"program": "${workspaceFolder}/src/motor_intention_detection.py",
 			"args": ["train", "1", "--batch=8"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
 		{
-			"name": "Motion Intention Detection: Train (Cacheless)",
+			"name": "Motor Intention Detection: Train (Cacheless)",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/motion_intention_detection.py",
+			"program": "${workspaceFolder}/src/motor_intention_detection.py",
 			"args": ["train", "1", "--no-cache"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
 		{
-			"name": "Motion Intention Detection: Run",
+			"name": "Motor Intention Detection: Run",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/motion_intention_detection.py",
-			"args": ["run", "result/sub-01/motion_intention_detection/model.pt", "2"],
+			"program": "${workspaceFolder}/src/motor_intention_detection.py",
+			"args": ["run", "result/sub-10/motor_intention_detection/model.pt", "1"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},

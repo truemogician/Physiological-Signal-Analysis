@@ -72,14 +72,14 @@ class Dataset:
         self.emg_epochs = mne.EpochsArray(emg_data, info_emg, events, 0, event_id)
         self.labels = labels
         
-    def prepare_for_motion_intention_detection(self, interval = 1000) -> Tuple[NDArray, NDArray]:
+    def prepare_for_motor_intention_detection(self, interval = 1000) -> Tuple[NDArray, NDArray]:
         '''
         构建用于GCN_LSTM实现EEG运动意图检测的数据。
         具体而言，因为2s时LED灯闪烁开始运动，因此取前4s的脑电数据，其中前2s为静息状态0，后2s为运动状态1。
         输出数据维度为(2x, 32, 1000)，其中x为样本数。
         '''
         assert 1000 % interval == 0, "interval must be a divisor of 1000" 
-        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-motion_intention_detection({interval}).npz"
+        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-motor_intention_detection({interval}).npz"
         if self.allow_cache and cache_file.exists():
             data = np.load(cache_file)
             eeg, labels = data["eeg"], data["labels"]
