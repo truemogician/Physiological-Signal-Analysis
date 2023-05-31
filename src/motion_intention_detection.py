@@ -3,7 +3,7 @@ import os
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import torch
 import torch.nn as nn
@@ -24,17 +24,28 @@ exp_name = Path(__file__).stem
 config = load_config(exp_name)
 path_conf = config["path"]
 
-def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True, batch = 1):
-    dataset = Dataset(data_file, allow_cache=allow_cache)
+def train(
+    data_file: Union[os.PathLike, List[os.PathLike]],
+    result_dir: os.PathLike, 
+    allow_cache = True, 
+    batch = 1):   
+    data_files = data_file if isinstance(data_file, list) else [data_file]
+    dataset = Dataset(data_files[0], allow_cache=allow_cache)
     eeg, labels = dataset.prepare_for_motion_intention_detection(config["data"]["interval"])
-    ensure_dir(result_dir)
+    matrix_trial = eeg[0]
+    for df in data_files[1:]:
+        dataset = Dataset(df, allow_cache=allow_cache)
+        eeg_, labels_ = dataset.prepare_for_motion_intention_detection(config["data"]["interval"])
+        eeg = np.concatenate((eeg, eeg_), axis=0)
+        labels = np.concatenate((labels, labels_), axis=0)
+        matrix_trial = np.concatenate((matrix_trial, eeg_[0]), axis=1)
     
     # 初始化关联性矩阵
-    initial_matrix_path = result_dir / path_conf["initial_matrix"]
+    initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
     if os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
-        matrix = SPMI_1epoch(eeg[0], 6, 2)
+        matrix = SPMI_1epoch(matrix_trial, 6, 2)
         matrix_mask = np.full(matrix.shape, True, dtype=bool)
         np.fill_diagonal(matrix_mask, False)
         min = matrix.min(initial=sys.float_info.max, where=matrix_mask)
@@ -175,18 +186,23 @@ if __name__ == "__main__":
     train_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for training")
     train_parser.add_argument("--no-cache", action="store_true", help="Whether to use cache")
     train_parser.add_argument("--batch", type=int, default="1", help="Time the model will be trained")
+    train_parser.add_argument("--result_dir", help="Path to directory where results will be saved")
     run_parser = sub_parasers.add_parser("run", help="Run model")
     run_parser.add_argument("model_file", help="Path to model file")
     run_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for running")
     args = parser.parse_args()
 
+    data_files = get_data_files()
     if args.command == "train":
         indices = [int(i) for i in args.subject_indices]
-        data_files = {k: v for k, v in get_data_files().items() if k in indices}
-        for [subj, data_file] in data_files.items():
-            print(f"Training model using data from subject {subj}...")
-            train(data_file, project_root / f"result/sub-{subj:02d}" / exp_name, not args.no_cache, args.batch)
+        indices.sort()
+        valid_indices = data_files.keys()
+        if any([i not in valid_indices for i in indices]):
+            raise ValueError("Invalid subject index")
+        data_files = {i: data_files[i] for i in indices}
+        result_dir = args.result_dir if args.result_dir else project_root / f"result/sub-{'+'.join([str(i).zfill(2) for i in indices])}" / exp_name
+        train(list(data_files.values()), result_dir, not args.no_cache, args.batch)
     if args.command == "run":
         indices = [int(i) for i in args.subject_indices]
-        data_files = [v for k, v in get_data_files().items() if k in indices]
+        data_files = [v for k, v in data_files.items() if k in indices]
         run(args.model_file, data_files)
