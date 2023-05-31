@@ -52,11 +52,12 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True, b
     model_conf = config["model"]
     train_conf = config["train"]
     min_loss = sys.float_info.max
+    max_acc = 0
     stats_workbook = xlwt.Workbook()
     training_results = []
-    for model_idx in range(batch):
+    for idx in range(batch):
         if batch > 1:
-            print(f"Training model {model_idx + 1}...")
+            print(f"Training the {idx + 1}{['st', 'nd', 'rd'][idx] if idx < 3 else 'th'} model...")
         # 构建模型
         gcn_net_model = GcnNet(
             node_embedding_dims=model_conf["node_embedding_dim"],
@@ -88,7 +89,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True, b
         print(f"Training time: {time.time() - start_time:.2f}s")
         training_results.append(result)
         
-        sheet = stats_workbook.add_sheet(f"model-{model_idx}")
+        sheet = stats_workbook.add_sheet(f"model-{idx}")
         for col, header in enumerate(["train_loss", "train_acc", "test_loss", "test_acc"]):
             sheet.write(0, col, header)
             for row, value in enumerate(result[header]):
@@ -96,17 +97,24 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True, b
         
         if result["test_loss"][-1] < min_loss:
             min_loss = result["test_loss"][-1]
-            best_model_idx = model_idx
             best_model = gcn_net_model
+            best_model_idx = idx
             best_result = result
+            
+        if result["test_acc"][-1] > max_acc:
+            max_acc = result["test_acc"][-1]
+            max_acc_model = gcn_net_model
+            max_acc_model_idx = idx
+            max_acc_result = result
     
     # 保存训练统计数据
-    if batch > 1:
-        stats_workbook.get_sheet(best_model_idx).name += " (best)"
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
     
     if batch > 1:
-        print(f"Best: test_acc={best_result['test_acc'][-1]:.4f}, test_loss={best_result['test_loss'][-1]:.4f}")
+        stats_workbook.get_sheet(best_model_idx).name += " (min_loss)"
+        stats_workbook.get_sheet(max_acc_model_idx).name += " (max_acc)"
+        print(f"Min Loss: test_acc={best_result['test_acc'][-1]:.4f}, test_loss={best_result['test_loss'][-1]:.4f}")
+        print(f"Max Acc: test_acc={max_acc_result['test_acc'][-1]:.4f}, test_loss={max_acc_result['test_loss'][-1]:.4f}")
         avg_acc = np.mean([result["test_acc"][-1] for result in training_results])
         avg_loss = np.mean([result["test_loss"][-1] for result in training_results])
         print(f"Average: test_acc={avg_acc:.4f}, test_loss={avg_loss:.4f}") 
