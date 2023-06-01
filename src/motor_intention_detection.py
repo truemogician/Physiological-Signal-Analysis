@@ -3,11 +3,12 @@ import os
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import List, Union
+from typing import cast, List, Union
 
 import torch
 import torch.nn as nn
 import numpy as np
+from numpy.typing import NDArray
 from matplotlib import pyplot as plt
 import xlwt
 
@@ -27,7 +28,8 @@ path_conf = config["path"]
 def train(
     data_file: Union[os.PathLike, List[os.PathLike]],
     result_dir: os.PathLike, 
-    allow_cache = True, 
+    allow_cache = True,
+    save_results = True,
     batch = 1):   
     data_files = data_file if isinstance(data_file, list) else [data_file]
     dataset = Dataset(data_files[0], allow_cache=allow_cache)
@@ -42,7 +44,7 @@ def train(
     
     # 初始化关联性矩阵
     initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
-    if os.path.exists(initial_matrix_path):
+    if allow_cache and os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
         matrix = SPMI_1epoch(matrix_trial, 6, 2)
@@ -52,7 +54,8 @@ def train(
         max = matrix.max(initial=sys.float_info.min, where=matrix_mask)
         rescaled_min, rescaled_max = min / 2, max / 2 + 0.5
         matrix = (matrix - min) / (max - min) * (rescaled_max - rescaled_min) + rescaled_min
-        np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
+        if allow_cache:
+            np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
 
     # 随机初始化邻接矩阵为0~1之间的数
     # matrix = np.random.rand(32, 32).astype(np.float32)
@@ -116,28 +119,34 @@ def train(
     
     # 保存训练统计数据
     result_headers = ["train_loss", "train_acc", "test_loss", "test_acc"]
-    stats_workbook = xlwt.Workbook()
-    for i in range(batch):
-        sheet_name = f"model-{i}"
-        if batch > 1:
-            if i == best_model_idx:
-                sheet_name += " (min_loss)"
-            if i == min_loss_model_idx:
-                sheet_name += " (max_acc)"
-        matrix = np.stack([training_results[i][header] for header in result_headers])
-        save_to_sheet(stats_workbook, sheet_name, matrix.T, result_headers)  
+    if save_results:
+        stats_workbook = xlwt.Workbook()
+        for i in range(batch):
+            sheet_name = f"model-{i}"
+            if batch > 1:
+                if i == best_model_idx:
+                    sheet_name += " (min_loss)"
+                if i == min_loss_model_idx:
+                    sheet_name += " (max_acc)"
+            matrix = np.stack([training_results[i][header] for header in result_headers])
+            save_to_sheet(stats_workbook, sheet_name, matrix.T, result_headers)  
     if batch > 1:
         average_result = {
             header: [np.mean([r[header][i] for r in training_results]) for i in range(iter_num)]
             for header in result_headers
         }
-        matrix = np.stack([average_result[header] for header in result_headers])
-        save_to_sheet(stats_workbook, "average", matrix.T, result_headers) 
+        if save_results:
+            matrix = np.stack([average_result[header] for header in result_headers])
+            save_to_sheet(stats_workbook, "average", matrix.T, result_headers) 
         print(f"Max Acc: test_acc={best_result['test_acc'][-1]:.4f}, test_loss={best_result['test_loss'][-1]:.4f}")
         print(f"Min Loss: test_acc={min_loss_result['test_acc'][-1]:.4f}, test_loss={min_loss_result['test_loss'][-1]:.4f}")
         print(f"Average: test_acc={average_result['test_acc'][-1]:.4f}, test_loss={average_result['test_loss'][-1]:.4f}")      
+    if not save_results:
+        return
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
-    
+    # 保存最佳模型的关联性矩阵
+    trained_matrix = cast(NDArray, best_model.get_matrix().cpu().numpy())
+    np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",") 
     # 画出最佳模型的acc和loss的曲线
     plt.figure()
     plt.plot(best_result["train_loss"], label="train_loss")
@@ -148,12 +157,7 @@ def train(
     plt.plot(best_result["train_acc"], label="train_acc")
     plt.plot(best_result["test_acc"], label=f"test_acc")
     plt.legend()
-    plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"]))
-    
-    # 保存最佳模型的关联性矩阵
-    trained_matrix = best_model.get_matrix().cpu() 
-    np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",")
-    
+    plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
     # 最佳模型关联性矩阵可视化
     matrix_plot_styles = config["plot"]["matrix"]["styles"]
     metadata = [
@@ -161,7 +165,7 @@ def train(
         for n, v in Dataset.eeg_electrode_metadata.items()
     ]
     figure = visualize_matrix(
-        trained_matrix.numpy(), 
+        trained_matrix, 
         metadata, 
         style=PlotStyle(
             node=matrix_plot_styles["node"],
@@ -170,7 +174,6 @@ def train(
         )
     )
     figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
-    
     # 保存最佳模型
     torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
  
@@ -193,6 +196,7 @@ if __name__ == "__main__":
     train_parser = sub_parasers.add_parser("train", help="Train model")
     train_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for training")
     train_parser.add_argument("--no-cache", action="store_true", help="Whether to use cache")
+    train_parser.add_argument("--no-save", action="store_true", help="Whether to save stats, plots and model")
     train_parser.add_argument("--batch", type=int, default="1", help="Time the model will be trained")
     train_parser.add_argument("--result_dir", help="Path to directory where results will be saved")
     run_parser = sub_parasers.add_parser("run", help="Run model")
@@ -209,7 +213,7 @@ if __name__ == "__main__":
             raise ValueError("Invalid subject index")
         data_files = {i: data_files[i] for i in indices}
         result_dir = args.result_dir if args.result_dir else project_root / f"result/sub-{'+'.join([str(i).zfill(2) for i in indices])}" / exp_name
-        train(list(data_files.values()), result_dir, not args.no_cache, args.batch)
+        train(list(data_files.values()), result_dir, not args.no_cache, not args.no_save, args.batch)
     if args.command == "run":
         indices = [int(i) for i in args.subject_indices]
         data_files = [v for k, v in data_files.items() if k in indices]
