@@ -218,5 +218,9 @@ if __name__ == "__main__":
         train(list(data_files.values()), result_dir, not args.no_cache, not args.no_save, args.batch)
     if args.command == "run":
         indices = [int(i) for i in args.subject_indices]
-        data_files = [v for k, v in data_files.items() if k in indices]
-        run(args.model_file, data_files)
+        indices.sort()
+        valid_indices = data_files.keys()
+        if any([i not in valid_indices for i in indices]):
+            raise ValueError("Invalid subject index")
+        data_files = {i: data_files[i] for i in indices}
+        run(args.model_file, list(data_files.values()))
