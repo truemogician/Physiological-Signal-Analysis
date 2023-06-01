@@ -1,5 +1,6 @@
-from pathlib import Path
 import json
+import time
+from pathlib import Path
 from typing import Tuple, NamedTuple, Optional
 
 import numpy as np
@@ -84,8 +85,9 @@ class Dataset:
             data = np.load(cache_file)
             eeg, labels = data["eeg"], data["labels"]
         else:
-            # 对数据进行0.05~50的滤波
-            self.eeg_epochs.filter(0.05, h_freq=50)
+            start_time = time.time()
+            # 对数据进行00.5-50Hz的滤波
+            self.eeg_epochs.filter(0.05, 50)
             eeg = self.eeg_epochs.get_data()
             eeg = eeg[:, :, :2000] # 0-2s为静息状态，而运动在4-8s之间停止，因此取前4s数据           
             # 将数据重新组合
@@ -95,6 +97,7 @@ class Dataset:
             new_trial_num = eeg.shape[0]
             labels = np.ones(new_trial_num)
             labels[:self.trial_num * 1000 // interval] = 0
+            print(f"Preprocess Time: {time.time() - start_time:.2f}s")
             
             if self.allow_cache:
                 np.savez(cache_file, eeg=eeg, labels=labels)

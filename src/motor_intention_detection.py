@@ -47,6 +47,7 @@ def train(
     if allow_cache and os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
+        start_time = time.time()
         matrix = SPMI_1epoch(matrix_trial, 6, 2)
         matrix_mask = np.full(matrix.shape, True, dtype=bool)
         np.fill_diagonal(matrix_mask, False)
@@ -54,6 +55,7 @@ def train(
         max = matrix.max(initial=sys.float_info.min, where=matrix_mask)
         rescaled_min, rescaled_max = min / 2, max / 2 + 0.5
         matrix = (matrix - min) / (max - min) * (rescaled_max - rescaled_min) + rescaled_min
+        print(f"SPMI Time: {time.time() - start_time:.2f}s")
         if allow_cache:
             np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
 
