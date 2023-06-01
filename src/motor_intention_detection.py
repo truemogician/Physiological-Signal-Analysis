@@ -101,15 +101,14 @@ def train(
         
         if result["test_loss"][-1] < min_loss:
             min_loss = result["test_loss"][-1]
-            best_model = gcn_net_model
-            best_model_idx = idx
-            best_result = result
+            min_loss_model_idx = idx
+            min_loss_result = result
             
         if result["test_acc"][-1] > max_acc:
             max_acc = result["test_acc"][-1]
-            max_acc_model = gcn_net_model
-            max_acc_model_idx = idx
-            max_acc_result = result
+            best_model = gcn_net_model
+            best_model_idx = idx
+            best_result = result
     
     # 保存训练统计数据
     result_headers = ["train_loss", "train_acc", "test_loss", "test_acc"]
@@ -119,7 +118,7 @@ def train(
         if batch > 1:
             if i == best_model_idx:
                 sheet_name += " (min_loss)"
-            if i == max_acc_model_idx:
+            if i == min_loss_model_idx:
                 sheet_name += " (max_acc)"
         matrix = np.stack([training_results[i][header] for header in result_headers])
         save_to_sheet(stats_workbook, sheet_name, matrix.T, result_headers)  
@@ -130,8 +129,8 @@ def train(
         }
         matrix = np.stack([average_result[header] for header in result_headers])
         save_to_sheet(stats_workbook, "average", matrix.T, result_headers) 
-        print(f"Min Loss: test_acc={best_result['test_acc'][-1]:.4f}, test_loss={best_result['test_loss'][-1]:.4f}")
-        print(f"Max Acc: test_acc={max_acc_result['test_acc'][-1]:.4f}, test_loss={max_acc_result['test_loss'][-1]:.4f}")
+        print(f"Max Acc: test_acc={best_result['test_acc'][-1]:.4f}, test_loss={best_result['test_loss'][-1]:.4f}")
+        print(f"Min Loss: test_acc={min_loss_result['test_acc'][-1]:.4f}, test_loss={min_loss_result['test_loss'][-1]:.4f}")
         print(f"Average: test_acc={average_result['test_acc'][-1]:.4f}, test_loss={average_result['test_loss'][-1]:.4f}")      
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
     
