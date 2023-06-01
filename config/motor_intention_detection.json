@@ -10,8 +10,14 @@
 		"batch_size": 10,
 		"test_size": 0.25,
 		"iteration_num": 25,
-		"learning_rate": 0.0004,
-		"weight_decay": 0.004
+		"loss_function": {
+			"name": "CrossEntropyLoss"
+		},
+		"optimizer": {
+			"name": "Adam",
+			"lr": 0.0004,
+			"weight_decay": 0.004
+		}
 	},
 	"plot": {
 		"matrix": {

@@ -82,17 +82,21 @@ def train(
             batch_size=train_conf["batch_size"],
             test_size=train_conf["test_size"]
         )
-        optimizer = torch.optim.Adam(
+        optimizer_conf = train_conf["optimizer"]
+        optimizer_attr = {k: v for k, v in optimizer_conf.items() if k != "name"}
+        optimizer = getattr(torch.optim, optimizer_conf["name"])(
             gcn_net_model.parameters(),
-            lr=train_conf["learning_rate"],
-            weight_decay=train_conf["weight_decay"]
+            **optimizer_attr
         )
+        loss_func_conf = train_conf["loss_function"]
+        loss_func_attr = {k: v for k, v in loss_func_conf.items() if k != "name"}
+        loss_func = getattr(nn, loss_func_conf["name"])(*loss_func_attr)
         start_time = time.time()
         result = train_model(
             gcn_net_model, 
             train_iter, 
             optimizer, 
-            lambda out, target: nn.CrossEntropyLoss()(out, target.long()), 
+            lambda out, target: loss_func(out, target.long()), 
             iter_num, 
             test_iter
         )
