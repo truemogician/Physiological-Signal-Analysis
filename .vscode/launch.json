@@ -70,11 +70,11 @@
 			"justMyCode": true
 		},
 		{
-			"name": "Repack Original Windowed Data",
+			"name": "Dump Windowed Data",
 			"type": "python",
 			"request": "launch",
 			"cwd": "${workspaceFolder}",
-			"program": "${workspaceFolder}/src/repack_original_windowed_data.py",
+			"program": "${workspaceFolder}/src/dump_windowed_data.py",
 			"args": [
 				"data/WAY-EEG-GAL/sub-01/raw/WS_P1_S1.mat",
 				"data/WAY-EEG-GAL/sub-01/series-01"

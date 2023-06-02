@@ -7,9 +7,9 @@ import scipy.io as sio
 import numpy as np
 
 
-def repack_original_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = True):
+def dump_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = True):
     """
-    Read the original data file in MatLab format and repack it into a json metadata file and a npz samples file.
+    Read the original data file in MatLab format and dump it into a json metadata file and a npz data file.
     
     The dimension of the samples file is (n_trials, n_samples, n_channels). But since different trials have different number of samples,
     each entry is actually a 1D object-type NDArray, whose elements are 2D arrays of shape (n_samples, n_channels).
@@ -53,4 +53,4 @@ if __name__ == "__main__":
     parser.add_argument("out_dir", type=str, help="Path to the output directory")
     parser.add_argument("--no-compress", action="store_false", dest="compress", help="Do not compress output file")
     args = parser.parse_args()
-    repack_original_windowed_data(args.data_file, args.out_dir, args.compress)
+    dump_windowed_data(args.data_file, args.out_dir, args.compress)
