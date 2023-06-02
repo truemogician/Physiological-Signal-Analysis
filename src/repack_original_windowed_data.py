@@ -8,6 +8,12 @@ import numpy as np
 
 
 def repack_original_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = True):
+    """
+    Read the original data file in MatLab format and repack it into a json metadata file and a npz samples file.
+    
+    The dimension of the samples file is (n_trials, n_samples, n_channels). But since different trials have different number of samples,
+    each entry is actually a 1D object-type NDArray, whose elements are 2D arrays of shape (n_samples, n_channels).
+    """
     ws = sio.loadmat(data_file, squeeze_me=True, struct_as_record=False)["ws"]
     metadata = dict(
         participant=ws.participant,
@@ -25,7 +31,7 @@ def repack_original_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, 
         trial_start=t.trial_start_time,
         trial_end=t.trial_end_time,
         surface=t.surf_id,
-        weight=t.weight_id
+        weight=int(t.weight_id[:3])
     ) for t in data]
     
     out_dir = Path(out_dir)
@@ -39,12 +45,12 @@ def repack_original_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, 
         np.savez_compressed(f"{out_dir}/samples.npz", eeg=eeg_data, emg=emg_data, kin=kin_data)
     else:
         np.savez(f"{out_dir}/samples.npz", eeg=eeg_data, emg=emg_data, kin=kin_data)
-        
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("data_file", type=str, required=True, help="Path to the original data file in MatLab format")
-    parser.add_argument("out_dir", type=str, required=True, help="Path to the output directory")
+    parser.add_argument("data_file", type=str, help="Path to the original data file in MatLab format")
+    parser.add_argument("out_dir", type=str, help="Path to the output directory")
     parser.add_argument("--no-compress", action="store_false", dest="compress", help="Do not compress output file")
     args = parser.parse_args()
     repack_original_windowed_data(args.data_file, args.out_dir, args.compress)
