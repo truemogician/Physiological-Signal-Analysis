@@ -41,7 +41,7 @@
 			"request": "launch",
 			"cwd": "${workspaceFolder}",
 			"program": "src/weight_classification.py",
-			"args": ["train", "1"],
+			"args": ["train", "1", "--batch=8"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
@@ -63,7 +63,7 @@
 			"program": "src/weight_classification.py",
 			"args": [
 				"run",
-				"result/sub-01/weight_classification/model.pt",
+				"result/WAY-EEG-GAL/weight_classification/sub-01/model.pt",
 				"2"
 			],
 			"console": "integratedTerminal",
