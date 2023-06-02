@@ -17,7 +17,7 @@ from dataset.way_eeg_gal import Dataset
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, get_data_files, load_config, ensure_dir
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
-from connectivity.PMI import SPMI_1epoch
+from algorithm.entropy import spmi
 
 
 exp_name = Path(__file__).stem
@@ -34,7 +34,7 @@ def train(data_file: os.PathLike, result_dir: os.PathLike, allow_cache = True):
     if os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
-        matrix = SPMI_1epoch(emg[0], 6, 2)
+        matrix = spmi(emg[0], 6, 2)
         matrix_mask = np.full(matrix.shape, True, dtype=bool)
         np.fill_diagonal(matrix_mask, False)
         min = matrix.min(initial=sys.float_info.max, where=matrix_mask)

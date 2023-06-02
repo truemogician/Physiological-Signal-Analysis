@@ -18,7 +18,7 @@ from dataset.way_eeg_gal import Dataset
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, get_data_files, load_config, ensure_dir, save_to_sheet
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
-from connectivity.PMI import SPMI_1epoch
+from algorithm.entropy import spmi
 
 
 exp_name = Path(__file__).stem
@@ -48,7 +48,7 @@ def train(
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
         start_time = time.time()
-        matrix = SPMI_1epoch(matrix_trial, 6, 2)
+        matrix = spmi(matrix_trial, 6, 2)
         matrix_mask = np.full(matrix.shape, True, dtype=bool)
         np.fill_diagonal(matrix_mask, False)
         min = matrix.min(initial=sys.float_info.max, where=matrix_mask)
@@ -178,7 +178,7 @@ def train(
     figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
     # 保存最佳模型
     torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
- 
+
 def run(model_file: os.PathLike, data_files: List[os.PathLike]):
     model = torch.load(model_file)
     for data_file in data_files:
