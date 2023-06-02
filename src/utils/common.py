@@ -2,13 +2,12 @@ import os
 import re
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type, TypeVar, NamedTuple
 
 import xlwt
 
 
 project_root = Path(__file__).parent.parent.parent
-
 
 def get_data_files(data_dir: os.PathLike = project_root / "data"):
     all_files = [f for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))]
@@ -19,7 +18,6 @@ def get_data_files(data_dir: os.PathLike = project_root / "data"):
             files[int(match.group(1))] = os.path.join(data_dir, f)
     return files
 
-
 def load_config(task_name: str) -> Dict[str, Any]:
     config_file = project_root / f"config/{task_name}.json"
     return json.load(open(config_file, "r"))
@@ -27,6 +25,23 @@ def load_config(task_name: str) -> Dict[str, Any]:
 def ensure_dir(path: os.PathLike):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     return path
+
+T = TypeVar("T", bound=NamedTuple)
+def dict_to_namedtuple(data: Dict[str, object], nt_class: Type[T]) -> T:
+    fields = nt_class._fields
+    field_types = nt_class.__annotations__
+    values = []
+    for field in fields:
+        if field in data:
+            value = data[field]
+            if isinstance(value, dict) and field in field_types:
+                nested_nt = dict_to_namedtuple(value, field_types[field])
+                values.append(nested_nt)
+            else:
+                values.append(value)
+        else:
+            values.append(None)
+    return nt_class(*values) # type: ignore
 
 def save_to_sheet(
     wb: xlwt.Workbook, 

@@ -1,127 +1,132 @@
 import json
-import time
-from pathlib import Path
-from typing import Tuple, NamedTuple, Optional
+from typing import cast, List, Dict, Tuple, NamedTuple, Literal, Optional, Union
 
 import numpy as np
-from numpy.typing import NDArray
-import mne
+import nptyping as npt
+from nptyping import NDArray, Shape
+from mne import EpochsArray, create_info
 
-from utils.common import project_root
+from utils.common import project_root, dict_to_namedtuple
 
 
-mne.set_log_level("WARNING")
+data_dir = project_root / "data"
 
-class ElectrodeMetadata(NamedTuple):
+class ElectrodeInfo(NamedTuple):
     group: int
     coordinate: Tuple[float, float, float]
 
+class TrialMetadata(NamedTuple):
+    led_on: float
+    led_off: float
+    trial_start: float
+    trial_end: float
+    surface: Literal["sandpaper", "silk", "suede"]
+    weight: Literal[165, 330, 660]
 
-class Dataset:
-    eeg_channel_names = [
-        "Fp1", "Fp2", "F7", "F3", "Fz",
-        "F4", "F8", "FC5", "FC1", "FC2", "FC6", "T7",
-        "C3", "Cz", "C4", "T8", "TP9", "CP5",
-        "CP1", "CP2", "CP6", "TP10", "P7", "P3",
-        "Pz", "P4", "P8", "PO9", "O1", "Oz", "O2", "PO10"]
-    
-    # 1-三角前肌，2-肱桡肌，3-指屈肌，4-指总伸肌，5-骨间背肌
-    emg_channel_names = ["EMG1", "EMG2", "EMG3", "EMG4", "EMG5"]
-    
-    eeg_electrode_metadata = {
-        k: ElectrodeMetadata(v["group"], tuple(v["coordinate"]))
-        for k, v in json.load(open(project_root / "data/eeg_electrodes.json", "r")).items()
+class SeriesMetadata(NamedTuple):
+    participant: int
+    series: int
+    channels: Dict[Literal["eeg", "emg", "kin"], List[str]]
+    trials: list[TrialMetadata]
+
+class Metadata:
+    eeg_layout = {
+        k: ElectrodeInfo(v["group"], tuple(v["coordinate"]))
+        for k, v in json.load(open(data_dir / "eeg_layout.json", "r")).items()
     }
     
-    eeg_sfreq = 500
-    
-    emg_sfreq = 4000
-    
-    def __init__(self, filename: str, load = True, allow_cache = True):
-        self.filename = filename
-        self.allow_cache = allow_cache
+    @staticmethod
+    def load(participant: int, series: int) -> SeriesMetadata:
+        file = data_dir / f"sub-{participant:02d}/series-{series:02d}/metadata.json"
+        if not file.exists():
+            raise FileNotFoundError(f"Metadata file not found: {file}")
+        metadata = json.load(open(file, "r"))
+        return dict_to_namedtuple(metadata, SeriesMetadata)
+
+EEG_TRIAL_TYPE = NDArray[Shape["32, *"], npt.Float64]  
+EMG_TRIAL_TYPE = NDArray[Shape["5, *"], npt.Float64]  
+KIN_TRIAL_TYPE = NDArray[Shape["45, *"], npt.Float64]
+
+ALL_SURFACES = ["sandpaper", "silk", "suede"]
+ALL_WEIGHTS = [165, 330, 660]
+SAMPLING_RATES = dict(
+    eeg=500,
+    emg=4000,
+    kin=500
+)
+
+class Dataset:
+    def __init__(self, participant:int, series: int, load = True):
+        self.participant = participant
+        self.series = series
+        self.filename = data_dir / f"sub-{participant:02d}/series-{series:02d}/samples.npz"
         if load:
             self.load()
-            
-    def load(self):
-        data: NDArray = np.load(self.filename, allow_pickle=True)
-        eeg_data = data.item()["eeg"].transpose(0, 2, 1)
-        emg_data = data.item()["emg"].transpose(0, 2, 1)
-        labels = np.array(data.item()["label"], dtype=np.int64)
-        
-        self.eeg_samples = eeg_data.shape[2]
-        self.emg_samples = emg_data.shape[2]
-        self.trial_num = len(labels)
-
-        # 创建info结构
-        info_eeg = mne.create_info(
-            ch_names=Dataset.eeg_channel_names,
-            ch_types="eeg",
-            sfreq=Dataset.eeg_sfreq
-        )
-        info_emg = mne.create_info(
-            ch_names=Dataset.emg_channel_names,
-            ch_types="emg",
-            sfreq=Dataset.emg_sfreq
-        )
-        
-        # 创建事件
-        events = np.array([[idx, 0, label] for idx, label in enumerate(labels)])
-        event_id = dict(weight_165=1, weight_330=2, weight_660=4)
-        
-        self.eeg_epochs = mne.EpochsArray(eeg_data, info_eeg, events, 0, event_id)
-        self.emg_epochs = mne.EpochsArray(emg_data, info_emg, events, 0, event_id)
-        self.labels = labels
-        
-    def prepare_for_motor_intention_detection(self, interval = 1000) -> Tuple[NDArray, NDArray]:
-        '''
-        构建用于GCN_LSTM实现EEG运动意图检测的数据。
-        具体而言，因为2s时LED灯闪烁开始运动，因此取前4s的脑电数据，其中前2s为静息状态0，后2s为运动状态1。
-        输出数据维度为(2x, 32, 1000)，其中x为样本数。
-        '''
-        assert 1000 % interval == 0, "interval must be a divisor of 1000" 
-        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-motor_intention_detection({interval}).npz"
-        if self.allow_cache and cache_file.exists():
-            data = np.load(cache_file)
-            eeg, labels = data["eeg"], data["labels"]
-        else:
-            start_time = time.time()
-            # 对数据进行00.5-50Hz的滤波
-            self.eeg_epochs.filter(0.05, 50)
-            eeg = self.eeg_epochs.get_data()
-            eeg = eeg[:, :, :2000] # 0-2s为静息状态，而运动在4-8s之间停止，因此取前4s数据           
-            # 将数据重新组合
-            eeg = np.split(eeg, 2000 // interval, axis=2)
-            eeg = np.concatenate(eeg, axis=0)          
-            # 构建运动意图标签
-            new_trial_num = eeg.shape[0]
-            labels = np.ones(new_trial_num)
-            labels[:self.trial_num * 1000 // interval] = 0
-            print(f"Preprocess Time: {time.time() - start_time:.2f}s")
-            
-            if self.allow_cache:
-                np.savez(cache_file, eeg=eeg, labels=labels)
-        
-        return eeg, labels
+        self._loaded = load
     
-    def prepare_for_weight_classification(self, sfreq: Optional[int] = None):
-        assert sfreq is None or sfreq <= Dataset.emg_sfreq, "sfreq must be less than or equal to 4000Hz"
-        if sfreq is None:
-            sfreq = Dataset.emg_sfreq
-        cache_file = Path(self.filename).parent / f"{Path(self.filename).stem}-weight_classification({sfreq}).npz"
-        if self.allow_cache and cache_file.exists():
-            data = np.load(cache_file)
-            emg, labels = data["emg"], data["labels"]
+    def load(self):
+        if self._loaded:
+            return
+        data: NDArray = np.load(self.filename, allow_pickle=True)
+        self.eeg = cast(NDArray, data["eeg"])
+        self.emg = cast(NDArray, data["emg"])
+        self.kin = cast(NDArray, data["kin"])
+        for i in range(len(self.eeg)):
+            self.eeg[i] = self.eeg[i].transpose(1, 0)
+            self.emg[i] = self.emg[i].transpose(1, 0)
+            self.kin[i] = self.kin[i].transpose(1, 0)
+        self._loaded = True
+    
+    def get_metadata(self) -> SeriesMetadata:
+        if self._metadata is None:
+            self._metadata = Metadata.load(self.participant, self.series)
+        return self._metadata
+    
+    def pick_trial(self, trial: int) -> Tuple[EEG_TRIAL_TYPE, EMG_TRIAL_TYPE, KIN_TRIAL_TYPE]:
+        assert 0 <= trial < len(self.eeg), "trial index out of range"
+        return self.eeg[trial], self.emg[trial], self.kin[trial]
+    
+    def stack_trials(self, 
+        type: Literal["eeg", "emg", "kin"],
+        n_samples: Union[int, Literal["min", "max", "mean"]] = "min",
+        trials: Optional[List[int]] = None) -> NDArray[Shape["*, *, *"], npt.Float64]:
+        if trials is None:
+            trials = list(range(len(self.eeg)))
         else:
-            # 对数据进行10-1000Hz的滤波
-            self.emg_epochs.filter(10, 1000, picks="emg")    
-            # 降采样
-            if sfreq != Dataset.emg_sfreq:
-                self.emg_epochs.resample(sfreq)         
-            # 去除前2s静息状态的数据
-            emg = self.emg_epochs.get_data()[..., sfreq * 2:]
-            labels = np.vectorize(lambda label: 2 if label == 4 else label - 1)(self.labels)          
-            if self.allow_cache:
-                np.savez(cache_file, emg=emg, labels=labels)
-        
-        return emg, labels
+            trials = list(set(trials))
+            assert all([0 <= i < len(self.eeg) for i in trials]), "trial index out of range"
+        if n_samples == "min":
+            n_samples = min([self.eeg[i].shape[1] for i in trials])
+        elif n_samples == "max":
+            n_samples = max([self.eeg[i].shape[1] for i in trials])
+        elif n_samples == "mean":
+            n_samples = int(np.mean([self.eeg[i].shape[1] for i in trials]))
+        data = getattr(self, type)
+        return np.stack([
+            data[i][:,:n_samples] if data[i].shape[1] >= n_samples 
+                else np.pad(data[i], ((0, 0), (0, n_samples - data[i].shape[1])), "constant") 
+            for i in trials
+        ], axis=0)
+    
+    def to_epochs_array(self, 
+        type: Literal["eeg", "emg", "kin"],
+        n_samples: Union[int, Literal["min", "max", "mean"]] = "min",
+        trials: Optional[List[int]] = None) -> EpochsArray:
+        data = self.stack_trials(type, n_samples, trials)
+        metadata = self.get_metadata()
+        channel_type = "misc" if type == "kin" else type
+        info = create_info(metadata.channels[type], SAMPLING_RATES[type], channel_type)
+        SURFACE_MAP = { s: i for i, s in enumerate(ALL_SURFACES) }
+        WEIGHT_MAP = { w: i for i, w in enumerate(ALL_WEIGHTS) }
+        surfaces = [m.surface for m in metadata.trials]
+        weights = [m.weight for m in metadata.trials]
+        if all([s == surfaces[0] for s in surfaces]):
+            event_id = { str(w): i for i, w in enumerate(ALL_WEIGHTS) }
+            events = np.array([[idx, 0, SURFACE_MAP[str(t.weight)]] for idx, t in enumerate(metadata.trials)])
+        elif all([w == weights[0] for w in weights]):
+            event_id = { s: i for i, s in enumerate(ALL_SURFACES) }
+            events = np.array([[idx, 0, WEIGHT_MAP[t.surface]] for idx, t in enumerate(metadata.trials)])
+        else:
+            event_id = { f"{s}|{w}": i * len(ALL_WEIGHTS) + j for i, s in enumerate(ALL_SURFACES) for j, w in enumerate(ALL_WEIGHTS) }
+            events = np.array([[idx, 0, event_id[f"{t.surface}|{t.weight}"]] for idx, t in enumerate(metadata.trials)])
+        return EpochsArray(data, info, events, event_id=event_id)
