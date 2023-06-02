@@ -5,17 +5,19 @@
 			"name": "Motor Intention Detection: Train",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/motor_intention_detection.py",
+			"cwd": "${workspaceFolder}",
+			"program": "src/motor_intention_detection.py",
 			"args": ["train", "1", "--batch=8"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
 		{
-			"name": "Motor Intention Detection: Train (Cacheless)",
+			"name": "Motor Intention Detection: Train (Spontaneous)",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/motor_intention_detection.py",
-			"args": ["train", "1", "--no-cache"],
+			"cwd": "${workspaceFolder}",
+			"program": "src/motor_intention_detection.py",
+			"args": ["train", "1", "--no-cache", "--no-save"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
@@ -23,8 +25,13 @@
 			"name": "Motor Intention Detection: Run",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/motor_intention_detection.py",
-			"args": ["run", "result/sub-10/motor_intention_detection/model.pt", "1"],
+			"cwd": "${workspaceFolder}",
+			"program": "src/motor_intention_detection.py",
+			"args": [
+				"run",
+				"result/WAY-EEG-GAL/motor_intention_detection/sub-10/model.pt",
+				"1"
+			],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
@@ -32,17 +39,19 @@
 			"name": "Weight Classification: Train",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/weight_classification.py",
+			"cwd": "${workspaceFolder}",
+			"program": "src/weight_classification.py",
 			"args": ["train", "1"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
 		{
-			"name": "Weight Classification: Train (Cacheless)",
+			"name": "Weight Classification: Train (Sponaneous)",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/weight_classification.py",
-			"args": ["train", "1", "--no-cache"],
+			"cwd": "${workspaceFolder}",
+			"program": "src/weight_classification.py",
+			"args": ["train", "1", "--no-cache", "--no-save"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
@@ -50,8 +59,13 @@
 			"name": "Weight Classification: Run",
 			"type": "python",
 			"request": "launch",
-			"program": "${workspaceFolder}/src/weight_classification.py",
-			"args": ["run", "result/sub-01/weight_classification/model.pt", "2"],
+			"cwd": "${workspaceFolder}",
+			"program": "src/weight_classification.py",
+			"args": [
+				"run",
+				"result/sub-01/weight_classification/model.pt",
+				"2"
+			],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		},
@@ -61,7 +75,10 @@
 			"request": "launch",
 			"cwd": "${workspaceFolder}",
 			"program": "${workspaceFolder}/src/repack_original_windowed_data.py",
-			"args": ["data/sub-01/raw/WS_P1_S1.mat", "data/sub-01/series-01"],
+			"args": [
+				"data/WAY-EEG-GAL/sub-01/raw/WS_P1_S1.mat",
+				"data/WAY-EEG-GAL/sub-01/series-01"
+			],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		}

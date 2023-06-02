@@ -3,48 +3,83 @@ import os
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import cast, List, Union
+from typing import cast, List, Union, Tuple
 
 import torch
 import torch.nn as nn
 import numpy as np
-from numpy.typing import NDArray
+import nptyping as npt
+from nptyping import NDArray, Shape
 from matplotlib import pyplot as plt
+import mne
 import xlwt
 
 from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
-from dataset.way_eeg_gal import Dataset
+from dataset.way_eeg_gal import Dataset, parse_indices, EEG_DATA_TYPE
 from dataset.utils import create_data_loader, create_train_test_loader
-from utils.common import project_root, get_data_files, load_config, ensure_dir, save_to_sheet
+from utils.common import project_root, load_config, ensure_dir, save_to_sheet
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
 from algorithm.entropy import spmi
 
 
+dataset_name = "WAY-EEG-GAL"
 exp_name = Path(__file__).stem
 config = load_config(exp_name)
 path_conf = config["path"]
 
+mne.set_log_level("WARNING")
+
+def preprocess(
+    dataset: Union[Dataset, Tuple[int, int]],
+    total_length = 2000,
+    interval = 1000,
+    cache = False) -> Tuple[EEG_DATA_TYPE, NDArray[Shape["*"], npt.Float64]]:
+    assert 1000 % interval == 0, "interval must be a divisor of 1000"
+    assert total_length >  1000 and total_length % interval == 0, "total_length must be greater than 1000 and a divisor of interval"
+    if not isinstance(dataset, Dataset):
+        dataset = Dataset(dataset[0], dataset[1], False)
+    cache_file = project_root / "cache" / dataset_name / exp_name / f"sub-{dataset.participant:02d}_series-{dataset.series:02d}.npz"
+    if cache and cache_file.exists():
+        data = np.load(cache_file)
+        return data["eeg"], data["labels"]
+    dataset.load()
+    epochs_array = dataset.to_epochs_array("eeg", total_length)
+    start_time = time.time()
+    # 对数据进行00.5-50Hz的滤波
+    epochs_array.filter(0.05, 50)
+    eeg = epochs_array.get_data()
+    trial_num = eeg.shape[0]
+    # 将数据重新组合
+    eeg = np.split(eeg, total_length // interval, axis=2)
+    eeg = np.concatenate(eeg, axis=0)          
+    # 构建运动意图标签，0为静息，1为运动
+    new_trial_num = eeg.shape[0]
+    labels = np.ones(new_trial_num)
+    labels[:trial_num * 1000 // interval] = 0
+    print(f"Preprocess Time: {time.time() - start_time:.2f}s")
+    if cache:
+        np.savez(ensure_dir(cache_file), eeg=eeg, labels=labels)
+    return eeg, labels
+
 def train(
-    data_file: Union[os.PathLike, List[os.PathLike]],
+    data_index: Union[Tuple[int, int], List[Tuple[int, int]]],
     result_dir: os.PathLike, 
-    allow_cache = True,
+    cache = True,
     save_results = True,
     batch = 1):   
-    data_files = data_file if isinstance(data_file, list) else [data_file]
-    dataset = Dataset(data_files[0], allow_cache=allow_cache)
-    eeg, labels = dataset.prepare_for_motor_intention_detection(config["data"]["interval"])
+    data_indices = data_index if isinstance(data_index, list) else [data_index]
+    eeg, labels = preprocess(data_indices[0], interval=config["data"]["interval"], cache=cache)
     matrix_trial = eeg[0]
-    for df in data_files[1:]:
-        dataset = Dataset(df, allow_cache=allow_cache)
-        eeg_, labels_ = dataset.prepare_for_motor_intention_detection(config["data"]["interval"])
+    for index in data_indices[1:]:
+        eeg_, labels_ = preprocess(index, interval=config["data"]["interval"], cache=cache)
         eeg = np.concatenate((eeg, eeg_), axis=0)
         labels = np.concatenate((labels, labels_), axis=0)
         matrix_trial = np.concatenate((matrix_trial, eeg_[0]), axis=1)
     
     # 初始化关联性矩阵
     initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
-    if allow_cache and os.path.exists(initial_matrix_path):
+    if cache and os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
         start_time = time.time()
@@ -56,14 +91,8 @@ def train(
         rescaled_min, rescaled_max = min / 2, max / 2 + 0.5
         matrix = (matrix - min) / (max - min) * (rescaled_max - rescaled_min) + rescaled_min
         print(f"SPMI Time: {time.time() - start_time:.2f}s")
-        if allow_cache:
+        if cache:
             np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
-
-    # 随机初始化邻接矩阵为0~1之间的数
-    # matrix = np.random.rand(32, 32).astype(np.float32)
-    # for i in range(matrix.shape[0]):
-    #    for j in range(0, i):
-    #        matrix[i, j] = matrix[j, i]
 
     model_conf = config["model"]
     train_conf = config["train"]
@@ -147,7 +176,7 @@ def train(
         return
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
     # 保存最佳模型的关联性矩阵
-    trained_matrix = cast(NDArray, best_model.get_matrix().cpu().numpy())
+    trained_matrix = cast(NDArray[Shape("N, N"), npt.Float64], best_model.get_matrix().cpu().numpy())
     np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",") 
     # 画出最佳模型的acc和loss的曲线
     plt.figure()
@@ -179,48 +208,35 @@ def train(
     # 保存最佳模型
     torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
 
-def run(model_file: os.PathLike, data_files: List[os.PathLike]):
-    model = torch.load(model_file)
-    for data_file in data_files:
-        dataset = Dataset(data_file)
-        data, labels = dataset.prepare_for_motor_intention_detection(config["data"]["interval"])
+def run(model_file: os.PathLike, data_index: Union[Tuple[int, int], List[Tuple[int, int]]]):
+    model = cast(nn.Module, torch.load(model_file))
+    data_indices = data_index if isinstance(data_index, list) else [data_index]
+    loss_func_conf = config["train"]["loss_function"]
+    loss_func_attr = {k: v for k, v in loss_func_conf.items() if k != "name"}
+    loss_func = getattr(nn, loss_func_conf["name"])(*loss_func_attr)
+    for index in data_indices:
+        data, labels = preprocess(index, interval=config["data"]["interval"], cache=True)
         loader = create_data_loader(data, labels, batch_size=config["train"]["batch_size"]) 
-        loss, acc = run_model(
-            model, 
-            loader, 
-            lambda out, target: nn.CrossEntropyLoss()(out, target.long())
-        )
-        print(f"[{Path(data_file).name}] Loss: {loss:.4f}, Acc: {acc:.4f}")
+        loss, acc = run_model(model, loader, lambda out, target: loss_func(out, target.long()))
+        print(f"[{index}] Loss: {loss:.4f}, Acc: {acc:.4f}")
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Train or run model")
     sub_parasers = parser.add_subparsers(dest="command")
     train_parser = sub_parasers.add_parser("train", help="Train model")
-    train_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for training")
-    train_parser.add_argument("--no-cache", action="store_true", help="Whether to use cache")
+    train_parser.add_argument("data_file_indices", nargs="+", help="Indices of data to be used for training. Format: <participant>-<series>, or <participant> for all series of a participant")
+    train_parser.add_argument("--no-cache", action="store_true", help="Whether to use cache for data preprocessing and initial matrix")
     train_parser.add_argument("--no-save", action="store_true", help="Whether to save stats, plots and model")
-    train_parser.add_argument("--batch", type=int, default="1", help="Time the model will be trained")
+    train_parser.add_argument("--batch", type=int, default="1", help="Number of times the model will be trained")
     train_parser.add_argument("--result_dir", help="Path to directory where results will be saved")
     run_parser = sub_parasers.add_parser("run", help="Run model")
     run_parser.add_argument("model_file", help="Path to model file")
-    run_parser.add_argument("subject_indices", nargs="+", help="Indices of subjects whose data will be used for running")
+    run_parser.add_argument("data_file_indices", nargs="+", help="Indices of data to be used for running. Format: <participant>-<series>, or <participant> for all series of a participant")
     args = parser.parse_args()
 
-    data_files = get_data_files()
+    indices = parse_indices(args.data_file_indices)
     if args.command == "train":
-        indices = [int(i) for i in args.subject_indices]
-        indices.sort()
-        valid_indices = data_files.keys()
-        if any([i not in valid_indices for i in indices]):
-            raise ValueError("Invalid subject index")
-        data_files = {i: data_files[i] for i in indices}
-        result_dir = args.result_dir if args.result_dir else project_root / f"result/sub-{'+'.join([str(i).zfill(2) for i in indices])}" / exp_name
-        train(list(data_files.values()), result_dir, not args.no_cache, not args.no_save, args.batch)
+        default_result_dir = project_root / "result" / dataset_name / exp_name / f"sub-{'+'.join([str(i).zfill(2) for i in indices])}"
+        train(indices, args.result_dir if args.result_dir else default_result_dir, not args.no_cache, not args.no_save, args.batch)
     if args.command == "run":
-        indices = [int(i) for i in args.subject_indices]
-        indices.sort()
-        valid_indices = data_files.keys()
-        if any([i not in valid_indices for i in indices]):
-            raise ValueError("Invalid subject index")
-        data_files = {i: data_files[i] for i in indices}
-        run(args.model_file, list(data_files.values()))
+        run(args.model_file, indices)

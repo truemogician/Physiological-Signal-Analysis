@@ -1,4 +1,8 @@
 __pycache__
+.vscode/*
+!.vscode/launch.json
 data/*
-!data/*.json
+!data/WAY-EEG-GAL/
+data/WAY-EEG-GAL/*
+!data/WAY-EEG-GAL/eeg-10-20-layout.json
 result

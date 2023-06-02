@@ -1,4 +1,7 @@
 import json
+import re
+from glob import glob
+from pathlib import Path
 from typing import cast, List, Dict, Tuple, NamedTuple, Literal, Optional, Union
 
 import numpy as np
@@ -9,7 +12,22 @@ from mne import EpochsArray, create_info
 from utils.common import project_root, dict_to_namedtuple
 
 
-data_dir = project_root / "data"
+data_dir = project_root / "data/WAY-EEG-GAL"
+
+EEG_TRIAL_TYPE = NDArray[Shape["32, *"], npt.Float64]  
+EMG_TRIAL_TYPE = NDArray[Shape["5, *"], npt.Float64]  
+KIN_TRIAL_TYPE = NDArray[Shape["45, *"], npt.Float64]
+EEG_DATA_TYPE = NDArray[Shape["*, 32, *"], npt.Float64]  
+EMG_DATA_TYPE = NDArray[Shape["*, 5, *"], npt.Float64]  
+KIN_DATA_TYPE = NDArray[Shape["*, 45, *"], npt.Float64]
+
+ALL_SURFACES = ["sandpaper", "silk", "suede"]
+ALL_WEIGHTS = [165, 330, 660]
+SAMPLING_RATES = dict(
+    eeg=500,
+    emg=4000,
+    kin=500
+)
 
 class ElectrodeInfo(NamedTuple):
     group: int
@@ -32,7 +50,7 @@ class SeriesMetadata(NamedTuple):
 class Metadata:
     eeg_layout = {
         k: ElectrodeInfo(v["group"], tuple(v["coordinate"]))
-        for k, v in json.load(open(data_dir / "eeg_layout.json", "r")).items()
+        for k, v in json.load(open(data_dir / "eeg-10-20-layout.json", "r")).items()
     }
     
     @staticmethod
@@ -43,23 +61,45 @@ class Metadata:
         metadata = json.load(open(file, "r"))
         return dict_to_namedtuple(metadata, SeriesMetadata)
 
-EEG_TRIAL_TYPE = NDArray[Shape["32, *"], npt.Float64]  
-EMG_TRIAL_TYPE = NDArray[Shape["5, *"], npt.Float64]  
-KIN_TRIAL_TYPE = NDArray[Shape["45, *"], npt.Float64]
+def get_data_files():
+    all_files = glob(f"{data_dir}/sub-[0-9][0-9]/series-[0-9][0-9]/samples.npz")
+    files: Dict[Tuple[int, int], Path] = dict()
+    for f in all_files:
+        match = re.match(r".*sub-(\d+)/series-(\d+)/samples.npz$", f)
+        assert match is not None
+        participant, series = int(match.group(1)), int(match.group(2))
+        files[(participant, series)] = Path(f)
+    return files
 
-ALL_SURFACES = ["sandpaper", "silk", "suede"]
-ALL_WEIGHTS = [165, 330, 660]
-SAMPLING_RATES = dict(
-    eeg=500,
-    emg=4000,
-    kin=500
-)
+def parse_indices(indices: List[Union[int, Tuple[int, int], str]]):
+    all_indices = list(get_data_files().keys())
+    ids: List[Tuple[int, int]] = []
+    for i, index in enumerate(indices):
+        if isinstance(index, str):
+            match = re.match(r"^(\d+)(?:-(\d+))?$", index)
+            assert match is not None
+            participant = int(match.group(1))
+            if match.group(2):
+                indices[i] = (participant, int(match.group(2)))
+            else:
+                indices[i] = participant
+    for index in indices:
+        if isinstance(index, int):
+            ids += [i for i in all_indices if i[0] == index]
+        elif isinstance(index, tuple):
+            assert len(index) == 2 and index in all_indices, f"Invalid index: {index}"
+            ids.append(index)
+        elif not isinstance(index, str):
+            raise TypeError("Indices must be int, tuple or str")
+    return ids
 
 class Dataset:
     def __init__(self, participant:int, series: int, load = True):
         self.participant = participant
         self.series = series
         self.filename = data_dir / f"sub-{participant:02d}/series-{series:02d}/samples.npz"
+        if not self.filename.exists():
+            raise FileNotFoundError(f"Dataset file not found: {self.filename}")
         if load:
             self.load()
         self._loaded = load
