@@ -176,7 +176,7 @@ def train(
         return
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
     # 保存最佳模型的关联性矩阵
-    trained_matrix = cast(NDArray[Shape("N, N"), npt.Float64], best_model.get_matrix().cpu().numpy())
+    trained_matrix = cast(NDArray[Shape["N, N"], npt.Float64], best_model.get_matrix().cpu().numpy())
     np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",") 
     # 画出最佳模型的acc和loss的曲线
     plt.figure()

@@ -45,7 +45,7 @@ class SeriesMetadata(NamedTuple):
     participant: int
     series: int
     channels: Dict[Literal["eeg", "emg", "kin"], List[str]]
-    trials: list[TrialMetadata]
+    trials: List[TrialMetadata]
 
 class Metadata:
     eeg_layout = {
@@ -63,6 +63,7 @@ class Metadata:
 
 def get_data_files():
     all_files = glob(f"{data_dir}/sub-[0-9][0-9]/series-[0-9][0-9]/samples.npz")
+    all_files = [f.replace("\\", "/") for f in all_files]
     files: Dict[Tuple[int, int], Path] = dict()
     for f in all_files:
         match = re.match(r".*sub-(\d+)/series-(\d+)/samples.npz$", f)
@@ -103,6 +104,7 @@ class Dataset:
         if load:
             self.load()
         self._loaded = load
+        self._metadata: Optional[SeriesMetadata] = None
     
     def load(self):
         if self._loaded:
@@ -162,11 +164,13 @@ class Dataset:
         weights = [m.weight for m in metadata.trials]
         if all([s == surfaces[0] for s in surfaces]):
             event_id = { str(w): i for i, w in enumerate(ALL_WEIGHTS) }
-            events = np.array([[idx, 0, SURFACE_MAP[str(t.weight)]] for idx, t in enumerate(metadata.trials)])
+            events = [WEIGHT_MAP[t.weight] for t in metadata.trials]
         elif all([w == weights[0] for w in weights]):
-            event_id = { s: i for i, s in enumerate(ALL_SURFACES) }
-            events = np.array([[idx, 0, WEIGHT_MAP[t.surface]] for idx, t in enumerate(metadata.trials)])
+            event_id = SURFACE_MAP
+            events = [SURFACE_MAP[t.surface] for t in metadata.trials]
         else:
             event_id = { f"{s}|{w}": i * len(ALL_WEIGHTS) + j for i, s in enumerate(ALL_SURFACES) for j, w in enumerate(ALL_WEIGHTS) }
-            events = np.array([[idx, 0, event_id[f"{t.surface}|{t.weight}"]] for idx, t in enumerate(metadata.trials)])
+            events = [event_id[f"{t.surface}|{t.weight}"] for t in metadata.trials]
+        event_id = { k: v for k, v in event_id.items() if v in events }
+        events = np.array([[i, 0, v] for i, v in enumerate(events)])
         return EpochsArray(data, info, events, event_id=event_id)
