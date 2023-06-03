@@ -1,10 +1,14 @@
 import json
 import os
+import re
 from argparse import ArgumentParser
+from glob import glob
 from pathlib import Path
 
 import scipy.io as sio
 import numpy as np
+
+from utils.common import ensure_dir
 
 
 def dump_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = True):
@@ -34,9 +38,7 @@ def dump_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = 
         weight=int(t.weight_id[:3])
     ) for t in data]
     
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    with open(f"{out_dir}/metadata.json", "w") as f:
+    with open(ensure_dir(f"{out_dir}/metadata.json"), "w") as f:
         json.dump(metadata, f, indent="\t")
     eeg_data = np.array([t.eeg for t in data], dtype=object)
     emg_data = np.array([t.emg for t in data], dtype=object)
@@ -49,8 +51,18 @@ def dump_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("data_file", type=str, help="Path to the original data file in MatLab format")
+    parser.add_argument("src", type=str, help="Path to the original data file in MatLab format, or the folder containing these files.")
     parser.add_argument("out_dir", type=str, help="Path to the output directory")
     parser.add_argument("--no-compress", action="store_false", dest="compress", help="Do not compress output file")
     args = parser.parse_args()
-    dump_windowed_data(args.data_file, args.out_dir, args.compress)
+    src = Path(args.src)
+    if src.is_file():
+        dump_windowed_data(args.src, args.out_dir, args.compress)
+    else:
+        files = glob(f"{args.src}/WS_P*_S[0-9].mat")
+        for file in files:
+            file = file.replace("\\", "/")
+            match = re.match(r".*WS_P\d+_S(\d+)\.mat$", file)
+            assert match is not None
+            out_dir = f"{args.out_dir}/series-{int(match.group(1)):02d}"
+            dump_windowed_data(file, out_dir, args.compress)
