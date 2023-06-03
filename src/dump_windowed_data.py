@@ -1,10 +1,12 @@
 import json
 import os
 import re
+import sys
 from argparse import ArgumentParser
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from glob import glob
 from pathlib import Path
+from typing import List, Optional
 
 import scipy.io as sio
 import numpy as np
@@ -51,20 +53,20 @@ def dump_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = 
         np.savez(f"{out_dir}/samples.npz", eeg=eeg_data, emg=emg_data, kin=kin_data)
     print(f"Done {data_file}.")
 
-
-if __name__ == "__main__":
+def main(args: Optional[List[str]] = None):
+    if args is None:
+        args = sys.argv[1:]
     parser = ArgumentParser()
     parser.add_argument("src", type=str, help="Path to the original data file in MatLab format, or the folder containing these files.")
     parser.add_argument("out_dir", type=str, help="Path to the output directory")
     parser.add_argument("--no-compress", action="store_false", dest="compress", help="Do not compress output file")
-    args = parser.parse_args()
+    args = parser.parse_args(args)
     src = Path(args.src)
     if src.is_file():
         dump_windowed_data(args.src, args.out_dir, args.compress)
     else:
         files = glob(f"{args.src}/WS_P*_S[0-9].mat")
-        fiels = [f.replace("\\", "/") for f in files]
-        with ProcessPoolExecutor() as executor:
+        with ThreadPoolExecutor() as executor:
             regex = re.compile(r".*WS_P\d+_S(\d+)\.mat$")
             executor.map(
                 dump_windowed_data,
@@ -72,3 +74,6 @@ if __name__ == "__main__":
                 [f"{args.out_dir}/series-{int(regex.match(f).group(1)):02d}" for f in files],
                 [args.compress] * len(files)
             )
+
+if __name__ == "__main__":
+    main()
