@@ -209,11 +209,18 @@ def run(model_file: os.PathLike, data_index: Union[Tuple[int, int], List[Tuple[i
     loss_func_conf = config["train"]["loss_function"]
     loss_func_attr = {k: v for k, v in loss_func_conf.items() if k != "name"}
     loss_func = getattr(nn, loss_func_conf["name"])(*loss_func_attr)
+    avg_loss, avg_acc = 0.0, 0.0
     for index in data_indices:
         data, labels = preprocess(index, interval=config["data"]["interval"], cache=True)
         loader = create_data_loader(data, labels, batch_size=config["train"]["batch_size"]) 
         loss, acc = run_model(model, loader, lambda out, target: loss_func(out, target.long()))
-        print(f"[{index}] Loss: {loss:.4f}, Acc: {acc:.4f}")
+        avg_loss += loss
+        avg_acc += acc
+        print(f"{index} Loss: {loss:.4f}, Acc: {acc:.4f}")
+    if len(data_indices) > 1:
+        avg_loss /= len(data_indices)
+        avg_acc /= len(data_indices)
+        print(f"Average Loss: {avg_loss:.4f}, Average Acc: {avg_acc:.4f}")
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Train or run model")

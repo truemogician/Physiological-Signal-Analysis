@@ -78,7 +78,7 @@ def parse_indices(indices: List[Union[int, Tuple[int, int], str]]):
     for i, index in enumerate(indices):
         if isinstance(index, str):
             match = re.match(r"^(\d+)(?:-(\d+))?$", index)
-            assert match is not None
+            assert match is not None, f"Invalid index: {index}"
             participant = int(match.group(1))
             if match.group(2):
                 indices[i] = (participant, int(match.group(2)))
