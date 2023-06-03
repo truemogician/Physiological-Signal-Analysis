@@ -16,7 +16,7 @@ import xlwt
 
 from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
-from dataset.way_eeg_gal import Dataset, parse_indices, EEG_DATA_TYPE
+from dataset.way_eeg_gal import Dataset, parse_indices, get_default_result_dir_name, EEG_DATA_TYPE
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, load_config, ensure_dir, save_to_sheet
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
@@ -237,7 +237,7 @@ if __name__ == "__main__":
 
     indices = parse_indices(args.data_file_indices)
     if args.command == "train":
-        default_result_dir = project_root / "result" / dataset_name / exp_name / f"sub-{'+'.join([str(i).zfill(2) for i in indices])}"
+        default_result_dir = project_root / "result" / dataset_name / exp_name / get_default_result_dir_name(indices)
         train(indices, args.result_dir if args.result_dir else default_result_dir, not args.no_cache, not args.no_save, args.batch)
     if args.command == "run":
         run(args.model_file, indices)

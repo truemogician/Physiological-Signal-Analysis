@@ -92,7 +92,19 @@ def parse_indices(indices: List[Union[int, Tuple[int, int], str]]):
             ids.append(index)
         elif not isinstance(index, str):
             raise TypeError("Indices must be int, tuple or str")
-    return ids
+    return list(set(ids))
+
+def get_default_result_dir_name(indices: List[Tuple[int, int]]):
+    series: Dict[int, List[int]] = {}
+    for p, s in indices:
+        if p not in series:
+            series[p] = []
+        series[p].append(s)
+    for ss in series.values():
+        ss.sort()
+    participants = list(series.keys())
+    participants.sort()
+    return "+".join([str(p) if len(series[p]) == 9 else f"{p}({','.join([str(s) for s in series[p]])})" for p in participants])
 
 class Dataset:
     def __init__(self, participant:int, series: int, load = True):
