@@ -1,6 +1,7 @@
 __pycache__
 .vscode/*
 !.vscode/launch.json
+.VSCodeCounter/*
 data/*
 !data/WAY-EEG-GAL/
 data/WAY-EEG-GAL/*
