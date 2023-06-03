@@ -191,20 +191,19 @@ def train(
     plt.legend()
     plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
     # 最佳模型关联性矩阵可视化
-    matrix_plot_styles = config["plot"]["matrix"]["styles"]
     metadata = [
         NodeMeta(n, v.coordinate, v.group)
         for n, v in Metadata.eeg_layout.items()
     ]
-    figure = visualize_matrix(
-        trained_matrix, 
-        metadata, 
-        style=PlotStyle(
-            node=matrix_plot_styles["node"],
-            font=matrix_plot_styles["font"],
-            layout=matrix_plot_styles["layout"]
-        )
+    styles = config["plot"]["matrix"]["styles"]
+    plot_style = PlotStyle(
+        "node" in styles and styles["node"] or dict(),
+        "edge" in styles and styles["edge"] or dict(),
+        "axis" in styles and styles["axis"] or dict(),
+        "font" in styles and styles["font"] or dict(),
+        "layout" in styles and styles["layout"] or dict()
     )
+    figure = visualize_matrix(trained_matrix,  metadata, style=plot_style)
     figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
     # 保存最佳模型
     torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))

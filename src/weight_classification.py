@@ -16,7 +16,7 @@ import xlwt
 
 from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
-from dataset.way_eeg_gal import Dataset, parse_indices, get_default_result_dir_name, SAMPLING_RATES, EMG_DATA_TYPE
+from dataset.way_eeg_gal import Dataset, Metadata, parse_indices, get_default_result_dir_name, SAMPLING_RATES, EMG_DATA_TYPE
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import load_config, ensure_dir, save_to_sheet, project_root
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
@@ -185,20 +185,17 @@ def train(
     plt.legend()
     plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
     # 最佳模型关联性矩阵可视化
-    matrix_plot_styles = config["plot"]["matrix"]["styles"]
-    metadata = [
-        NodeMeta(n, v.coordinate, v.group)
-        for n, v in Dataset.eeg_electrode_metadata.items()
-    ]
-    figure = visualize_matrix(
-        trained_matrix, 
-        metadata, 
-        style=PlotStyle(
-            node=matrix_plot_styles["node"],
-            font=matrix_plot_styles["font"],
-            layout=matrix_plot_styles["layout"]
-        )
+    channel_names = Metadata.load(*data_indices[0]).channels["emg"]
+    metadata = [NodeMeta(n) for n in channel_names]
+    styles = config["plot"]["matrix"]["styles"]
+    plot_style = PlotStyle(
+        "node" in styles and styles["node"] or dict(),
+        "edge" in styles and styles["edge"] or dict(),
+        "axis" in styles and styles["axis"] or dict(),
+        "font" in styles and styles["font"] or dict(),
+        "layout" in styles and styles["layout"] or dict()
     )
+    figure = visualize_matrix(trained_matrix,  metadata, style=plot_style)
     figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
     # 保存最佳模型
     torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
