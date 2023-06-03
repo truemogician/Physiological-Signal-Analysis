@@ -2,6 +2,7 @@ import json
 import os
 import re
 from argparse import ArgumentParser
+from concurrent.futures import ProcessPoolExecutor
 from glob import glob
 from pathlib import Path
 
@@ -18,6 +19,7 @@ def dump_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = 
     The dimension of the samples file is (n_trials, n_samples, n_channels). But since different trials have different number of samples,
     each entry is actually a 1D object-type NDArray, whose elements are 2D arrays of shape (n_samples, n_channels).
     """
+    print(f"Processing {data_file}...")
     ws = sio.loadmat(data_file, squeeze_me=True, struct_as_record=False)["ws"]
     metadata = dict(
         participant=ws.participant,
@@ -47,6 +49,7 @@ def dump_windowed_data(data_file: os.PathLike, out_dir: os.PathLike, compress = 
         np.savez_compressed(f"{out_dir}/samples.npz", eeg=eeg_data, emg=emg_data, kin=kin_data)
     else:
         np.savez(f"{out_dir}/samples.npz", eeg=eeg_data, emg=emg_data, kin=kin_data)
+    print(f"Done {data_file}.")
 
 
 if __name__ == "__main__":
@@ -60,9 +63,12 @@ if __name__ == "__main__":
         dump_windowed_data(args.src, args.out_dir, args.compress)
     else:
         files = glob(f"{args.src}/WS_P*_S[0-9].mat")
-        for file in files:
-            file = file.replace("\\", "/")
-            match = re.match(r".*WS_P\d+_S(\d+)\.mat$", file)
-            assert match is not None
-            out_dir = f"{args.out_dir}/series-{int(match.group(1)):02d}"
-            dump_windowed_data(file, out_dir, args.compress)
+        fiels = [f.replace("\\", "/") for f in files]
+        with ProcessPoolExecutor() as executor:
+            regex = re.compile(r".*WS_P\d+_S(\d+)\.mat$")
+            executor.map(
+                dump_windowed_data,
+                files,
+                [f"{args.out_dir}/series-{int(regex.match(f).group(1)):02d}" for f in files],
+                [args.compress] * len(files)
+            )
