@@ -44,7 +44,7 @@
 		"matrix_plot": "plot/matrix.html",
 		"initial_matrix": "table/initial_matrix.csv",
 		"trained_matrix": "table/trained_matrix.csv",
-		"training_stats": "table/training_stats.xlsx",
+		"training_stats": "table/training_stats.xls",
 		"model": "model.pt"
 	}
 }

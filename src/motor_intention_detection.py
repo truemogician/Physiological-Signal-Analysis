@@ -16,7 +16,7 @@ import xlwt
 
 from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
-from dataset.way_eeg_gal import Dataset, parse_indices, get_default_result_dir_name, EEG_DATA_TYPE
+from dataset.way_eeg_gal import Dataset, Metadata, parse_indices, get_default_result_dir_name, EEG_DATA_TYPE
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, load_config, ensure_dir, save_to_sheet
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
@@ -60,7 +60,7 @@ def preprocess(
     labels[:trial_num * 1000 // interval] = 0
     print(f"Preprocess Time: {time.time() - start_time:.2f}s")
     if cache:
-        np.savez(ensure_dir(cache_file), eeg=eeg, labels=labels)
+        np.savez_compressed(ensure_dir(cache_file), eeg=eeg, labels=labels)
     return eeg, labels
 
 def train(
@@ -157,9 +157,9 @@ def train(
             sheet_name = f"model-{i}"
             if batch > 1:
                 if i == best_model_idx:
-                    sheet_name += " (min_loss)"
-                if i == min_loss_model_idx:
                     sheet_name += " (max_acc)"
+                if i == min_loss_model_idx:
+                    sheet_name += " (min_loss)"
             matrix = np.stack([training_results[i][header] for header in result_headers])
             save_to_sheet(stats_workbook, sheet_name, matrix.T, result_headers)  
     if batch > 1:
@@ -194,7 +194,7 @@ def train(
     matrix_plot_styles = config["plot"]["matrix"]["styles"]
     metadata = [
         NodeMeta(n, v.coordinate, v.group)
-        for n, v in Dataset.eeg_electrode_metadata.items()
+        for n, v in Metadata.eeg_layout.items()
     ]
     figure = visualize_matrix(
         trained_matrix, 

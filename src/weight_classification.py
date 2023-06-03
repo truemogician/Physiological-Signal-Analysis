@@ -54,7 +54,7 @@ def preprocess(
     labels = np.array([e[2] for e in epochs_array.events])
     print(f"Preprocess Time: {time.time() - start_time:.2f}s")
     if cache:
-        np.savez(ensure_dir(cache_file), emg=emg, labels=labels)
+        np.savez_compressed(ensure_dir(cache_file), emg=emg, labels=labels)
     return emg, labels
 
 def train(
@@ -151,9 +151,9 @@ def train(
             sheet_name = f"model-{i}"
             if batch > 1:
                 if i == best_model_idx:
-                    sheet_name += " (min_loss)"
-                if i == min_loss_model_idx:
                     sheet_name += " (max_acc)"
+                if i == min_loss_model_idx:
+                    sheet_name += " (min_loss)"
             matrix = np.stack([training_results[i][header] for header in result_headers])
             save_to_sheet(stats_workbook, sheet_name, matrix.T, result_headers)  
     if batch > 1:

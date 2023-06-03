@@ -49,7 +49,7 @@ class SeriesMetadata(NamedTuple):
 
 class Metadata:
     eeg_layout = {
-        k: ElectrodeInfo(v["group"], tuple(v["coordinate"]))
+        cast(str, k): ElectrodeInfo(v["group"], tuple(v["coordinate"]))
         for k, v in json.load(open(data_dir / "eeg-10-20-layout.json", "r")).items()
     }
     
