@@ -5,4 +5,5 @@ data/*
 !data/WAY-EEG-GAL/
 data/WAY-EEG-GAL/*
 !data/WAY-EEG-GAL/eeg-10-20-layout.json
+cache
 result

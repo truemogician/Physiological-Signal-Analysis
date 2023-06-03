@@ -1,4 +1,3 @@
-import csv
 import time
 import os
 import sys
@@ -38,7 +37,8 @@ def preprocess(
     assert SAMPLING_RATES["emg"] % sampling_rate == 0, f"sampling_rate must be a divisor of {SAMPLING_RATES['emg']}"
     if not isinstance(dataset, Dataset):
         dataset = Dataset(dataset[0], dataset[1], False)
-    cache_file = project_root / "cache" / dataset_name / exp_name / f"sub-{dataset.participant:02d}_series-{dataset.series:02d}.npz"
+    cache_filename = f"sub-{dataset.participant:02d}_series-{dataset.series:02d}(sampling_rate={sampling_rate}).npz"
+    cache_file = project_root / "cache" / dataset_name / exp_name / cache_filename
     if cache and cache_file.exists():
         data = np.load(cache_file)
         return data["emg"], data["labels"]

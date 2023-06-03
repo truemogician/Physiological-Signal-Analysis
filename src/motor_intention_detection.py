@@ -39,7 +39,8 @@ def preprocess(
     assert total_length >  1000 and total_length % interval == 0, "total_length must be greater than 1000 and a divisor of interval"
     if not isinstance(dataset, Dataset):
         dataset = Dataset(dataset[0], dataset[1], False)
-    cache_file = project_root / "cache" / dataset_name / exp_name / f"sub-{dataset.participant:02d}_series-{dataset.series:02d}.npz"
+    cache_filename = f"sub-{dataset.participant:02d}_series-{dataset.series:02d}(total_length={total_length},interval={interval}).npz"
+    cache_file = project_root / "cache" / dataset_name / exp_name / cache_filename
     if cache and cache_file.exists():
         data = np.load(cache_file)
         return data["eeg"], data["labels"]
