@@ -1,8 +1,17 @@
+## Environment
+
+The environment of this project is managed by [conda](https://docs.conda.io/en/latest/). To get the environment ready, here's the steps:
+
+1. Install [conda](https://docs.conda.io/en/latest/) if you haven't.
+2. Add conda to your system path.
+3. Run the following command from project root: `conda env create -f environment.yml -n {env_name}`. Replace `{env_name}` with the name you want to give to the environment. This environment takes 8.02GB on my Windows 11 machine, so make sure you have enough space.
+4. To execute scripts in this project, run `conda activate {env_name}` first to activate the environment.
+
 ## Dataset
 
 Currently, this research project uses [WAY-EEG-GAL](https://figshare.com/collections/WAY_EEG_GAL_Multi_channel_EEG_Recordings_During_3_936_Grasp_and_Lift_Trials_with_Varying_Weight_and_Friction/988376) only.
 
-To get the project ready, here's the steps:
+To get the data ready, here's the steps:
 
 1. Download the dataset from figshare. This dataset includes 12 sub-datasets, one for each participant. The sizes of those sub-datasets vary from 700MB to 1000MB, here's the basic information and download page of them. You don't need to downloa all of them, but if I recommend downloading at least 2 of them, so that you can test the code on different participants.
    |participant|size| download page |
@@ -42,3 +51,4 @@ To get the project ready, here's the steps:
         ├── ...
         └── sub-12
     ```
+    The `raw` folder contains the original mat files extracted from the zip files. These MatLab files are not further used in this project, so you may delete them at your will. You'll save approximately 75% of the disk space by doing so.
