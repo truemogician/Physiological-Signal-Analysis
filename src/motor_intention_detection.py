@@ -71,7 +71,22 @@ def preprocess(
     print(f"Preprocess Time: {time.time() - start_time:.2f}s")
     if cache:
         np.savez_compressed(ensure_dir(cache_file), eeg=eeg, labels=labels)
-    return eeg, labels
+
+def visualize_matrix_and_save(matrix: NDArray[Shape["N, N"], npt.Float64], out_file: os.PathLike):
+    metadata = [
+        NodeMeta(n, v.coordinate, v.group)
+        for n, v in Metadata.eeg_layout.items()
+    ]
+    styles = config["plot"]["matrix"]["styles"]
+    plot_style = PlotStyle(
+        "node" in styles and styles["node"] or dict(),
+        "edge" in styles and styles["edge"] or dict(),
+        "axis" in styles and styles["axis"] or dict(),
+        "font" in styles and styles["font"] or dict(),
+        "layout" in styles and styles["layout"] or dict()
+    )
+    figure = visualize_matrix(matrix, metadata, style=plot_style)
+    figure.write_html(ensure_dir(out_file))
 
 def train(
     data_index: Union[Tuple[int, int], List[Tuple[int, int]]],
@@ -104,6 +119,8 @@ def train(
         print(f"SPMI Time: {time.time() - start_time:.2f}s")
         if cache:
             np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
+        if "initial_matrix_plot" in path_conf:
+            visualize_matrix_and_save(matrix, result_dir / path_conf["initial_matrix_plot"])
 
     model_conf = config["model"]
     train_conf = config["train"]
@@ -190,33 +207,24 @@ def train(
     trained_matrix = cast(NDArray[Shape["N, N"], npt.Float64], best_model.get_matrix().cpu().numpy())
     np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",") 
     # 画出最佳模型的acc和loss的曲线
-    plt.figure()
-    plt.plot(best_result["train_loss"], label="train_loss")
-    plt.plot(best_result["test_loss"], label="test_loss")
-    plt.legend()
-    plt.savefig(ensure_dir(result_dir / path_conf["loss_plot"]))
-    plt.figure()
-    plt.plot(best_result["train_acc"], label="train_acc")
-    plt.plot(best_result["test_acc"], label=f"test_acc")
-    plt.legend()
-    plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
-    # 最佳模型关联性矩阵可视化
-    metadata = [
-        NodeMeta(n, v.coordinate, v.group)
-        for n, v in Metadata.eeg_layout.items()
-    ]
-    styles = config["plot"]["matrix"]["styles"]
-    plot_style = PlotStyle(
-        "node" in styles and styles["node"] or dict(),
-        "edge" in styles and styles["edge"] or dict(),
-        "axis" in styles and styles["axis"] or dict(),
-        "font" in styles and styles["font"] or dict(),
-        "layout" in styles and styles["layout"] or dict()
-    )
-    figure = visualize_matrix(trained_matrix,  metadata, style=plot_style)
-    figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
+    if "loss_plot" in path_conf:
+        plt.figure()
+        plt.plot(best_result["train_loss"], label="train_loss")
+        plt.plot(best_result["test_loss"], label="test_loss")
+        plt.legend()
+        plt.savefig(ensure_dir(result_dir / path_conf["loss_plot"]))
+    if "acc_plot" in path_conf:
+        plt.figure()
+        plt.plot(best_result["train_acc"], label="train_acc")
+        plt.plot(best_result["test_acc"], label=f"test_acc")
+        plt.legend()
+        plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
+    # 可视化最佳模型关联性矩阵
+    if "trained_matrix_plot" in path_conf:
+        visualize_matrix_and_save(trained_matrix, result_dir / path_conf["trained_matrix_plot"])
     # 保存最佳模型
-    torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
+    if "model" in path_conf:
+        torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
 
 def run(model_file: os.PathLike, data_index: Union[Tuple[int, int], List[Tuple[int, int]]]):
     model = cast(nn.Module, torch.load(model_file))
