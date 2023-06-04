@@ -36,14 +36,14 @@ def preprocess(
     dataset: Union[Dataset, Tuple[int, int]],
     total_length = DIVIDING_LINE * 2,
     interval = DIVIDING_LINE,
-    cache = False) -> Tuple[EEG_DATA_TYPE, NDArray[Shape["*"], npt.Float64]]:
+    read_cache = True,
+    write_cache = True) -> Tuple[EEG_DATA_TYPE, NDArray[Shape["*"], npt.Float64]]:
     """
     Preprocess data for training or running model.
     ### Parameters:
         - `dataset`: Dataset or tuple of participant and series.
         - `total_length`: Total length of each trial, default to 4000 (ms), which equals to 2000 samples.
         - `interval`: Length of each sub-trial, default to 2000 (ms), which equals to 1000 samples.
-        - `cache`: Whether to use cache for data preprocessing.
     """
     assert DIVIDING_LINE % interval == 0, f"interval must be a divisor of {DIVIDING_LINE}"
     assert total_length > DIVIDING_LINE and total_length % interval == 0, f"total_length must be greater than {DIVIDING_LINE} and a divisor of interval"
@@ -51,7 +51,7 @@ def preprocess(
         dataset = Dataset(dataset[0], dataset[1], False)
     cache_filename = f"sub-{dataset.participant:02d}_series-{dataset.series:02d}(total_length={total_length},interval={interval}).npz"
     cache_file = project_root / "cache" / dataset_name / exp_name / cache_filename
-    if cache and cache_file.exists():
+    if read_cache and cache_file.exists():
         data = np.load(cache_file)
         return data["eeg"], data["labels"], data["first_trial"]
     dataset.load()
@@ -70,7 +70,7 @@ def preprocess(
     labels = np.ones(eeg.shape[0])
     labels[:trial_num * DIVIDING_LINE // interval] = 0
     print(f"Preprocess Time: {time.time() - start_time:.2f}s")
-    if cache:
+    if write_cache:
         np.savez_compressed(ensure_dir(cache_file), eeg=eeg, labels=labels, first_trial=first_trial)
     return eeg, labels, first_trial
 
@@ -93,20 +93,22 @@ def visualize_matrix_and_save(matrix: NDArray[Shape["N, N"], npt.Float64], out_f
 def train(
     data_index: Union[Tuple[int, int], List[Tuple[int, int]]],
     result_dir: os.PathLike, 
-    cache = True,
+    read_cache = True,
+    write_cache = True,
     save_results = True,
     batch = 1):   
     data_indices = data_index if isinstance(data_index, list) else [data_index]
-    eeg, labels, matrix_trial = preprocess(data_indices[0], **config["data"], cache=cache)
+    preprocess_args = dict(**config["data"], read_cache=read_cache, write_cache=write_cache)
+    eeg, labels, matrix_trial = preprocess(data_indices[0], **preprocess_args)
     for index in data_indices[1:]:
-        eeg_, labels_, trial_ = preprocess(index, **config["data"], cache=cache)
+        eeg_, labels_, trial_ = preprocess(index, **preprocess_args)
         eeg = np.concatenate((eeg, eeg_), axis=0)
         labels = np.concatenate((labels, labels_), axis=0)
         matrix_trial = np.concatenate((matrix_trial, trial_), axis=1)
     
     # 初始化关联性矩阵
     initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
-    if cache and os.path.exists(initial_matrix_path):
+    if read_cache and os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
     else:
         start_time = time.time()
@@ -118,7 +120,7 @@ def train(
         rescaled_min, rescaled_max = min / 2, max / 2 + 0.5
         matrix = (matrix - min) / (max - min) * (rescaled_max - rescaled_min) + rescaled_min
         print(f"SPMI Time: {time.time() - start_time:.2f}s")
-        if cache:
+        if write_cache:
             np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
         if "initial_matrix_plot" in path_conf:
             visualize_matrix_and_save(matrix, result_dir / path_conf["initial_matrix_plot"])
@@ -251,6 +253,8 @@ if __name__ == "__main__":
     sub_parasers = parser.add_subparsers(dest="command")
     train_parser = sub_parasers.add_parser("train", help="Train model")
     train_parser.add_argument("data_file_indices", nargs="+", help="Indices of data to be used for training. Format: <participant>-<series>, or <participant> for all series of a participant")
+    train_parser.add_argument("--no-read-cache", action="store_true", help="Whether to read cache for data preprocessing and matrix initialization")
+    train_parser.add_argument("--no-write-cache", action="store_true", help="Whether to write cache after data preprocessing and matrix initialization")
     train_parser.add_argument("--no-cache", action="store_true", help="Whether to use cache for data preprocessing and initial matrix")
     train_parser.add_argument("--no-save", action="store_true", help="Whether to save stats, plots and model")
     train_parser.add_argument("--batch", type=int, default="1", help="Number of times the model will be trained")
@@ -262,7 +266,17 @@ if __name__ == "__main__":
 
     indices = parse_indices(args.data_file_indices)
     if args.command == "train":
+        if args.no_cache:
+            args.no_read_cache = True
+            args.no_write_cache = True
         default_result_dir = project_root / "result" / dataset_name / exp_name / get_default_result_dir_name(indices)
-        train(indices, args.result_dir if args.result_dir else default_result_dir, not args.no_cache, not args.no_save, args.batch)
+        train(
+            indices,
+            args.result_dir if args.result_dir else default_result_dir,
+            not args.no_read_cache,
+            not args.no_write_cache,
+            not args.no_save,
+            args.batch
+        )
     if args.command == "run":
         run(args.model_file, indices)
