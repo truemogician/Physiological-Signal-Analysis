@@ -9,7 +9,7 @@
 	"train": {
 		"batch_size": 10,
 		"test_size": 0.25,
-		"iteration_num": 50,
+		"iteration_num": 100,
 		"loss_function": {
 			"name": "CrossEntropyLoss"
 		},

@@ -117,6 +117,31 @@ class Dataset:
             self.load()
         self._loaded = load
         self._metadata: Optional[SeriesMetadata] = None
+        self._series_type: Optional[Literal["weight", "surface", "mixed"]] = None
+    
+    @property
+    def loaded(self):
+        return self._loaded
+    
+    @property
+    def metadata(self) -> SeriesMetadata:
+        if self._metadata is None:
+            self._metadata = Metadata.load(self.participant, self.series)
+        return self._metadata
+    
+    @property
+    def series_type(self) -> Literal["weight", "surface", "mixed"]:
+        if self._series_type is None:
+            surfaces = [m.surface for m in self.metadata.trials]
+            if all([s == surfaces[0] for s in surfaces]):
+                self._series_type = "weight"
+            else:
+                weights = [m.weight for m in self.metadata.trials]
+                if all([w == weights[0] for w in weights]):
+                    self._series_type = "surface"
+                else:
+                    self._series_type = "mixed"
+        return self._series_type
     
     def load(self):
         if self._loaded:
@@ -131,11 +156,6 @@ class Dataset:
             self.kin[i] = self.kin[i].transpose(1, 0)
         self._loaded = True
     
-    def get_metadata(self) -> SeriesMetadata:
-        if self._metadata is None:
-            self._metadata = Metadata.load(self.participant, self.series)
-        return self._metadata
-    
     def pick_trial(self, trial: int) -> Tuple[EEG_TRIAL_TYPE, EMG_TRIAL_TYPE, KIN_TRIAL_TYPE]:
         assert 0 <= trial < len(self.eeg), "trial index out of range"
         return self.eeg[trial], self.emg[trial], self.kin[trial]
@@ -144,17 +164,18 @@ class Dataset:
         type: Literal["eeg", "emg", "kin"],
         n_samples: Union[int, Literal["min", "max", "mean"]] = "min",
         trials: Optional[List[int]] = None) -> NDArray[Shape["*, *, *"], npt.Float64]:
+        data_src = cast(NDArray, getattr(self, type))
         if trials is None:
-            trials = list(range(len(self.eeg)))
+            trials = list(range(len(data_src)))
         else:
             trials = list(set(trials))
-            assert all([0 <= i < len(self.eeg) for i in trials]), "trial index out of range"
+            assert all([0 <= i < len(data_src) for i in trials]), "trial index out of range"
         if n_samples == "min":
-            n_samples = min([self.eeg[i].shape[1] for i in trials])
+            n_samples = min([data_src[i].shape[1] for i in trials])
         elif n_samples == "max":
-            n_samples = max([self.eeg[i].shape[1] for i in trials])
+            n_samples = max([data_src[i].shape[1] for i in trials])
         elif n_samples == "mean":
-            n_samples = int(np.mean([self.eeg[i].shape[1] for i in trials]))
+            n_samples = int(np.mean([data_src[i].shape[1] for i in trials]))
         data = getattr(self, type)
         return np.stack([
             data[i][:,:n_samples] if data[i].shape[1] >= n_samples 
@@ -167,22 +188,19 @@ class Dataset:
         n_samples: Union[int, Literal["min", "max", "mean"]] = "min",
         trials: Optional[List[int]] = None) -> EpochsArray:
         data = self.stack_trials(type, n_samples, trials)
-        metadata = self.get_metadata()
         channel_type = "misc" if type == "kin" else type
-        info = create_info(metadata.channels[type], SAMPLING_RATES[type], channel_type)
+        info = create_info(self.metadata.channels[type], SAMPLING_RATES[type], channel_type)
         SURFACE_MAP = { s: i for i, s in enumerate(ALL_SURFACES) }
         WEIGHT_MAP = { w: i for i, w in enumerate(ALL_WEIGHTS) }
-        surfaces = [m.surface for m in metadata.trials]
-        weights = [m.weight for m in metadata.trials]
-        if all([s == surfaces[0] for s in surfaces]):
+        if self.series_type == "weight":
             event_id = { str(w): i for i, w in enumerate(ALL_WEIGHTS) }
-            events = [WEIGHT_MAP[t.weight] for t in metadata.trials]
-        elif all([w == weights[0] for w in weights]):
+            events = [WEIGHT_MAP[t.weight] for t in self.metadata.trials]
+        elif self.series_type == "surface":
             event_id = SURFACE_MAP
-            events = [SURFACE_MAP[t.surface] for t in metadata.trials]
+            events = [SURFACE_MAP[t.surface] for t in self.metadata.trials]
         else:
             event_id = { f"{s}|{w}": i * len(ALL_WEIGHTS) + j for i, s in enumerate(ALL_SURFACES) for j, w in enumerate(ALL_WEIGHTS) }
-            events = [event_id[f"{t.surface}|{t.weight}"] for t in metadata.trials]
+            events = [event_id[f"{t.surface}|{t.weight}"] for t in self.metadata.trials]
         event_id = { k: v for k, v in event_id.items() if v in events }
         events = np.array([[i, 0, v] for i, v in enumerate(events)])
         return EpochsArray(data, info, events, event_id=event_id)

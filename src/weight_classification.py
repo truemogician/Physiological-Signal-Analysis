@@ -3,7 +3,7 @@ import os
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import cast, List, Union, Tuple
+from typing import cast, List, Union, Tuple, Optional
 
 import torch
 import torch.nn as nn
@@ -59,18 +59,30 @@ def preprocess(
 
 def train(
     data_index: Union[Tuple[int, int], List[Tuple[int, int]]],
-    result_dir: os.PathLike, 
+    result_dir: Optional[os.PathLike] = None,
     cache = True,
     save_results = True,
-    batch = 1):   
+    batch = 1):
     data_indices = data_index if isinstance(data_index, list) else [data_index]
-    eeg, labels = preprocess(data_indices[0], sampling_rate=config["data"]["sampling_rate"], cache=cache)
-    matrix_trial = eeg[0]
-    for index in data_indices[1:]:
-        eeg_, labels_ = preprocess(index, sampling_rate=config["data"]["sampling_rate"], cache=cache)
-        eeg = np.concatenate((eeg, eeg_), axis=0)
-        labels = np.concatenate((labels, labels_), axis=0)
-        matrix_trial = np.concatenate((matrix_trial, eeg_[0]), axis=1)
+    emg_arr: List[EMG_DATA_TYPE] = []
+    labels_arr: List[NDArray] = []
+    filtered_indices: List[Tuple[int, int]] = []
+    for index in data_indices:
+        dataset = Dataset(index[0], index[1], False)
+        if dataset.series_type != "weight":
+            continue
+        filtered_indices.append(index)
+        emg, labels = preprocess(dataset, config["data"]["sampling_rate"], cache)
+        emg_arr.append(emg)
+        labels_arr.append(labels)
+    print(f"Weight series datasets: {filtered_indices}")
+    if result_dir is None:
+        result_dir = project_root / "result" / dataset_name / exp_name / get_default_result_dir_name(filtered_indices)
+    n_samples = np.min([e.shape[2] for e in emg_arr])
+    emg_arr = [e[:, :, :n_samples] for e in emg_arr]
+    emg = np.concatenate(emg_arr, axis=0)
+    labels = np.concatenate(labels_arr, axis=0)
+    matrix_trial = np.concatenate([e[0] for e in emg_arr], axis=1)
     
     # 初始化关联性矩阵
     initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
@@ -92,7 +104,7 @@ def train(
     model_conf = config["model"]
     train_conf = config["train"]
     min_loss = sys.float_info.max
-    max_acc = 0
+    max_acc = sys.float_info.min
     training_results = []
     for idx in range(batch):
         if batch > 1:
@@ -106,7 +118,7 @@ def train(
         # 训练模型
         iter_num = train_conf["iteration_num"]
         train_iter, test_iter = create_train_test_loader(
-            eeg,
+            emg,
             labels,
             batch_size=train_conf["batch_size"],
             test_size=train_conf["test_size"]
@@ -235,7 +247,6 @@ if __name__ == "__main__":
 
     indices = parse_indices(args.data_file_indices)
     if args.command == "train":
-        default_result_dir = project_root / "result" / dataset_name / exp_name / get_default_result_dir_name(indices)
-        train(indices, args.result_dir if args.result_dir else default_result_dir, not args.no_cache, not args.no_save, args.batch)
+        train(indices, args.result_dir, not args.no_cache, not args.no_save, args.batch)
     if args.command == "run":
         run(args.model_file, indices)
