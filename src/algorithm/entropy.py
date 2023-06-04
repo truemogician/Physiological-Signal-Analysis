@@ -27,15 +27,11 @@ def ordinal_pattern_frequency(time_series: List, window_size: int, window_step: 
     ARGS: time_series = Numeric vector representing the time series,
     window_size = length of the time window, preferred range is [3, 7], window_step = time window step
     OUPTUT: A numeric vector representing frequencies of ordinal patterns'''
-    n_states = math.factorial(window_size)
     lst = list()
     for i in range(0, len(time_series) - window_size, window_step):
         lst.append(np.argsort(time_series[i : i + window_size]))
     _, freq = np.unique(np.stack(lst, 0), return_counts=True, axis=0)
-    freq = list(freq)
-    if len(freq) < n_states:
-        freq += [0] * (n_states - len(freq))
-    return freq
+    return list(freq)
 
 def joint_ordinal_pattern_frequency(time_series: Tuple[List, List], window_size: int, window_step: int = 1):
     ''' This function computes the ordinal patterns of two time series for a given embedding dimension and embedding delay.
@@ -45,17 +41,13 @@ def joint_ordinal_pattern_frequency(time_series: Tuple[List, List], window_size:
     OUPTUT: A numeric vector representing frequencies of ordinal patterns'''
     assert len(time_series) == 2 and len(time_series[0]) == len(time_series[1]), "ts must be a tuple of two lists with same length"
     s1, s2 = time_series
-    n_states = math.factorial(window_size) * 6
     l1, l2 = list(), list()
     for i in range(0, len(s1) - window_size, window_step):
         l1.append(list(np.argsort(s1[i : i + window_size])))
         l2.append(list(np.argsort(s2[i : i + window_size])))
     lst = np.concatenate((np.stack(l1, 0), np.stack(l2, 0)), axis=1)
     _, freq = np.unique(lst, return_counts=True, axis=0)
-    freq = list(freq)
-    if len(freq) < n_states:
-        freq += [0] * (n_states - len(freq))
-    return (freq)
+    return list(freq)
 
 def complexity(ord_freq_list: list):
     ''' This function computes the complexity of a time series defined as: Comp_JS = Q_o * JSdivergence * pe
@@ -84,9 +76,9 @@ def pmi(epoch: NDArray[Shape["*, *"], Floating], window_size: int, window_step: 
     OUPTUT: PMI matrix
     '''
     assert len(epoch.shape) == 2, "epoch must be a 2D array"
-    pmi = np.zeros([epoch.shape[0], epoch.shape[0]])
     ops = [ordinal_pattern_frequency(epoch[i], window_size, window_step) for i in range(epoch.shape[0])]
     entropies = [permutation_entropy(op) for op in ops]
+    pmi = np.zeros([epoch.shape[0], epoch.shape[0]])
     for i in range(epoch.shape[0]):
         for j in np.arange(i, epoch.shape[0]):
             op_xy = joint_ordinal_pattern_frequency((epoch[i], epoch[j]), window_size, window_step)
@@ -115,9 +107,9 @@ def spmi(epoch: NDArray[Shape["*, *"], Floating], window_size: int, window_step:
     OUPTUT: PMI matrix
     '''
     assert len(epoch.shape) == 2, "epoch must be a 2D array"
-    spmi = np.zeros([epoch.shape[0], epoch.shape[0]])
     ops = [ordinal_pattern_frequency(epoch[i], window_size, window_step) for i in range(epoch.shape[0])]
     entropies = [permutation_entropy(op) for op in ops]
+    spmi = np.zeros([epoch.shape[0], epoch.shape[0]])
     for i in range(epoch.shape[0]):
         for j in np.arange(i, epoch.shape[0]):
             op_xy = joint_ordinal_pattern_frequency((epoch[i], epoch[j]), window_size, window_step)
