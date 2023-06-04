@@ -98,6 +98,8 @@ def train(
     save_results = True,
     batch = 1):   
     data_indices = data_index if isinstance(data_index, list) else [data_index]
+    if not isinstance(result_dir, Path):
+        result_dir = Path(result_dir)
     preprocess_args = dict(**config["data"], read_cache=read_cache, write_cache=write_cache)
     eeg, labels, matrix_trial = preprocess(data_indices[0], **preprocess_args)
     for index in data_indices[1:]:
