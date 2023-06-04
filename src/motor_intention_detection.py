@@ -270,10 +270,13 @@ if __name__ == "__main__":
     run_parser = sub_parasers.add_parser("run", help="Run model")
     run_parser.add_argument("model_file", help="Path to model file")
     run_parser.add_argument("data_file_indices", nargs="+", help="Indices of data to be used for running. Format: <participant>-<series>, or <participant> for all series of a participant")
+    visualize_parser = sub_parasers.add_parser("visualize", help="Visualize matrix")
+    visualize_parser.add_argument("matrix_file", help="Path to matrix file, should be a csv file")
+    visualize_parser.add_argument("--out_file", help="Path to output file, should be a html file")
     args = parser.parse_args()
 
-    indices = parse_indices(args.data_file_indices)
     if args.command == "train":
+        indices = parse_indices(args.data_file_indices)
         if args.no_cache:
             args.no_read_cache = True
             args.no_write_cache = True
@@ -286,5 +289,10 @@ if __name__ == "__main__":
             not args.no_save,
             args.batch
         )
-    if args.command == "run":
+    elif args.command == "run":
+        indices = parse_indices(args.data_file_indices)
         run(args.model_file, indices)
+    elif args.command == "visualize":
+        matrix = np.loadtxt(args.matrix_file, delimiter=",")
+        out_file = Path(args.out_file) if args.out_file else Path(args.matrix_file).with_suffix(".html")
+        visualize_matrix_and_save(np.abs(matrix), out_file)
