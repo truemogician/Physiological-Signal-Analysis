@@ -16,7 +16,7 @@ import xlwt
 
 from model.GcnNet import GcnNet
 from model.utils import train_model, run_model
-from dataset.way_eeg_gal import Dataset, Metadata, parse_indices, get_default_result_dir_name, EEG_DATA_TYPE
+from dataset.way_eeg_gal import Dataset, Metadata, parse_indices, get_default_result_dir_name, EEG_DATA_TYPE, SAMPLING_RATES
 from dataset.utils import create_data_loader, create_train_test_loader
 from utils.common import project_root, load_config, ensure_dir, save_to_sheet
 from utils.visualize import NodeMeta, PlotStyle, visualize_matrix
@@ -30,13 +30,23 @@ path_conf = config["path"]
 
 mne.set_log_level("WARNING")
 
+DIVIDING_LINE = 2000
+
 def preprocess(
     dataset: Union[Dataset, Tuple[int, int]],
-    total_length = 2000,
-    interval = 1000,
+    total_length = DIVIDING_LINE * 2,
+    interval = DIVIDING_LINE,
     cache = False) -> Tuple[EEG_DATA_TYPE, NDArray[Shape["*"], npt.Float64]]:
-    assert 1000 % interval == 0, "interval must be a divisor of 1000"
-    assert total_length >  1000 and total_length % interval == 0, "total_length must be greater than 1000 and a divisor of interval"
+    """
+    Preprocess data for training or running model.
+    ### Parameters:
+        - `dataset`: Dataset or tuple of participant and series.
+        - `total_length`: Total length of each trial, default to 4000 (ms), which equals to 2000 samples.
+        - `interval`: Length of each sub-trial, default to 2000 (ms), which equals to 1000 samples.
+        - `cache`: Whether to use cache for data preprocessing.
+    """
+    assert DIVIDING_LINE % interval == 0, f"interval must be a divisor of {DIVIDING_LINE}"
+    assert total_length > DIVIDING_LINE and total_length % interval == 0, f"total_length must be greater than {DIVIDING_LINE} and a divisor of interval"
     if not isinstance(dataset, Dataset):
         dataset = Dataset(dataset[0], dataset[1], False)
     cache_filename = f"sub-{dataset.participant:02d}_series-{dataset.series:02d}(total_length={total_length},interval={interval}).npz"
@@ -45,9 +55,10 @@ def preprocess(
         data = np.load(cache_file)
         return data["eeg"], data["labels"]
     dataset.load()
-    epochs_array = dataset.to_epochs_array("eeg", total_length)
+    n_samples = SAMPLING_RATES["eeg"] * total_length // 1000
+    epochs_array = dataset.to_epochs_array("eeg", n_samples)
     start_time = time.time()
-    # 对数据进行00.5-50Hz的滤波
+    # 对数据进行0.05-50Hz的滤波
     epochs_array.filter(0.05, 50)
     eeg = epochs_array.get_data()
     trial_num = eeg.shape[0]
@@ -55,9 +66,8 @@ def preprocess(
     eeg = np.split(eeg, total_length // interval, axis=2)
     eeg = np.concatenate(eeg, axis=0)          
     # 构建运动意图标签，0为静息，1为运动
-    new_trial_num = eeg.shape[0]
-    labels = np.ones(new_trial_num)
-    labels[:trial_num * 1000 // interval] = 0
+    labels = np.ones(eeg.shape[0])
+    labels[:trial_num * DIVIDING_LINE // interval] = 0
     print(f"Preprocess Time: {time.time() - start_time:.2f}s")
     if cache:
         np.savez_compressed(ensure_dir(cache_file), eeg=eeg, labels=labels)
@@ -70,10 +80,10 @@ def train(
     save_results = True,
     batch = 1):   
     data_indices = data_index if isinstance(data_index, list) else [data_index]
-    eeg, labels = preprocess(data_indices[0], interval=config["data"]["interval"], cache=cache)
+    eeg, labels = preprocess(data_indices[0], **config["data"], cache=cache)
     matrix_trial = eeg[0]
     for index in data_indices[1:]:
-        eeg_, labels_ = preprocess(index, interval=config["data"]["interval"], cache=cache)
+        eeg_, labels_ = preprocess(index, **config["data"], cache=cache)
         eeg = np.concatenate((eeg, eeg_), axis=0)
         labels = np.concatenate((labels, labels_), axis=0)
         matrix_trial = np.concatenate((matrix_trial, eeg_[0]), axis=1)

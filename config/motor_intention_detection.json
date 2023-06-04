@@ -4,7 +4,8 @@
 		"class_num": 2
 	},
 	"data": {
-		"interval": 1000
+		"total_length": 4000,
+		"interval": 2000
 	},
 	"train": {
 		"batch_size": 10,
