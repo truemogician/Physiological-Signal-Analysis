@@ -44,8 +44,10 @@
 		"loss_plot": "plot/loss.png",
 		"initial_matrix_plot": "plot/initial_matrix.html",
 		"trained_matrix_plot": "plot/trained_matrix.html",
+		"diff_matrix_plot": "plot/diff_matrix.html",
 		"initial_matrix": "table/initial_matrix.csv",
 		"trained_matrix": "table/trained_matrix.csv",
+		"diff_matrix": "table/diff_matrix.csv",
 		"training_stats": "table/training_stats.xls",
 		"model": "model.pt"
 	}

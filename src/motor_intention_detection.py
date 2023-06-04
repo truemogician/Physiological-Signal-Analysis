@@ -124,6 +124,7 @@ def train(
             np.savetxt(ensure_dir(initial_matrix_path), matrix, fmt="%.6f", delimiter=",")
         if "initial_matrix_plot" in path_conf:
             visualize_matrix_and_save(matrix, result_dir / path_conf["initial_matrix_plot"])
+    initial_matrix = matrix.copy()
 
     model_conf = config["model"]
     train_conf = config["train"]
@@ -206,9 +207,6 @@ def train(
     if not save_results:
         return
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
-    # 保存最佳模型的关联性矩阵
-    trained_matrix = cast(NDArray[Shape["N, N"], npt.Float64], best_model.get_matrix().cpu().numpy())
-    np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",") 
     # 画出最佳模型的acc和loss的曲线
     if "loss_plot" in path_conf:
         plt.figure()
@@ -222,9 +220,17 @@ def train(
         plt.plot(best_result["test_acc"], label=f"test_acc")
         plt.legend()
         plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
-    # 可视化最佳模型关联性矩阵
+    # 保存关联性矩阵相关数据
+    trained_matrix = cast(NDArray[Shape["N, N"], npt.Float64], best_model.get_matrix().cpu().numpy())
+    diff_matrix = trained_matrix - initial_matrix
+    if "trained_matrix" in path_conf:
+        np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",") 
     if "trained_matrix_plot" in path_conf:
         visualize_matrix_and_save(trained_matrix, result_dir / path_conf["trained_matrix_plot"])
+    if "diff_matrix" in path_conf:
+        np.savetxt(ensure_dir(result_dir / path_conf["diff_matrix"]), diff_matrix, fmt="%.6f", delimiter=",")
+    if "diff_matrix_plot" in path_conf:
+        visualize_matrix_and_save(np.abs(diff_matrix), result_dir / path_conf["diff_matrix_plot"])
     # 保存最佳模型
     if "model" in path_conf:
         torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
