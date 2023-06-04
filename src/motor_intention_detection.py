@@ -53,7 +53,7 @@ def preprocess(
     cache_file = project_root / "cache" / dataset_name / exp_name / cache_filename
     if cache and cache_file.exists():
         data = np.load(cache_file)
-        return data["eeg"], data["labels"]
+        return data["eeg"], data["labels"], data["first_trial"]
     dataset.load()
     n_samples = SAMPLING_RATES["eeg"] * total_length // 1000
     epochs_array = dataset.to_epochs_array("eeg", n_samples)
@@ -62,6 +62,7 @@ def preprocess(
     epochs_array.filter(0.05, 50)
     eeg = epochs_array.get_data()
     trial_num = eeg.shape[0]
+    first_trial = eeg[0].copy()
     # 将数据重新组合
     eeg = np.split(eeg, total_length // interval, axis=2)
     eeg = np.concatenate(eeg, axis=0)          
@@ -70,7 +71,8 @@ def preprocess(
     labels[:trial_num * DIVIDING_LINE // interval] = 0
     print(f"Preprocess Time: {time.time() - start_time:.2f}s")
     if cache:
-        np.savez_compressed(ensure_dir(cache_file), eeg=eeg, labels=labels)
+        np.savez_compressed(ensure_dir(cache_file), eeg=eeg, labels=labels, first_trial=first_trial)
+    return eeg, labels, first_trial
 
 def visualize_matrix_and_save(matrix: NDArray[Shape["N, N"], npt.Float64], out_file: os.PathLike):
     metadata = [
@@ -95,13 +97,12 @@ def train(
     save_results = True,
     batch = 1):   
     data_indices = data_index if isinstance(data_index, list) else [data_index]
-    eeg, labels = preprocess(data_indices[0], **config["data"], cache=cache)
-    matrix_trial = eeg[0]
+    eeg, labels, matrix_trial = preprocess(data_indices[0], **config["data"], cache=cache)
     for index in data_indices[1:]:
-        eeg_, labels_ = preprocess(index, **config["data"], cache=cache)
+        eeg_, labels_, trial_ = preprocess(index, **config["data"], cache=cache)
         eeg = np.concatenate((eeg, eeg_), axis=0)
         labels = np.concatenate((labels, labels_), axis=0)
-        matrix_trial = np.concatenate((matrix_trial, eeg_[0]), axis=1)
+        matrix_trial = np.concatenate((matrix_trial, trial_), axis=1)
     
     # 初始化关联性矩阵
     initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
