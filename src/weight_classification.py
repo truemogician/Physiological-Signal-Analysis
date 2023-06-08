@@ -45,9 +45,9 @@ def preprocess(
     dataset.load()
     epochs_array = dataset.to_epochs_array("emg")
     start_time = time.time()
-    # 对数据进行10-1000Hz的滤波
+    # Apply band-pass filter from 10 to 1000Hz
     epochs_array.filter(10, 1000, picks="emg")
-    # 降采样
+    # Downsample
     if sampling_rate != SAMPLING_RATES["emg"]:
         epochs_array.resample(sampling_rate)
     emg = epochs_array.get_data()
@@ -84,7 +84,7 @@ def train(
     labels = np.concatenate(labels_arr, axis=0)
     matrix_trial = np.concatenate([e[0] for e in emg_arr], axis=1)
     
-    # 初始化关联性矩阵
+    # Initialize connectivity matrix
     initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
     if cache and os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
@@ -109,13 +109,13 @@ def train(
     for idx in range(batch):
         if batch > 1:
             print(f"Training the {idx + 1}{['st', 'nd', 'rd'][idx] if idx < 3 else 'th'} model...")
-        # 构建模型
+        # Instantiate model
         gcn_net_model = GcnNet(
             node_embedding_dims=model_conf["node_embedding_dim"],
             class_num=model_conf["class_num"],
             adjacent_matrix=matrix
         )
-        # 训练模型
+        # Train model
         iter_num = train_conf["iteration_num"]
         train_iter, test_iter = create_train_test_loader(
             emg,
@@ -155,7 +155,7 @@ def train(
             best_model_idx = idx
             best_result = result
     
-    # 保存训练统计数据
+    # Save training statistics
     result_headers = ["train_loss", "train_acc", "test_loss", "test_acc"]
     if save_results:
         stats_workbook = xlwt.Workbook()
@@ -182,21 +182,22 @@ def train(
     if not save_results:
         return
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
-    # 保存最佳模型的关联性矩阵
+    # Draw loss and acc curves of the best model
+    if "loss_plot" in path_conf:
+        plt.figure()
+        plt.plot(best_result["train_loss"], label="train_loss")
+        plt.plot(best_result["test_loss"], label="test_loss")
+        plt.legend()
+        plt.savefig(ensure_dir(result_dir / path_conf["loss_plot"]))
+    if "acc_plot" in path_conf:
+        plt.figure()
+        plt.plot(best_result["train_acc"], label="train_acc")
+        plt.plot(best_result["test_acc"], label=f"test_acc")
+        plt.legend()
+        plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
+    # Save trained matrix and visualize it
     trained_matrix = cast(NDArray[Shape["N, N"], npt.Float64], best_model.get_matrix().cpu().numpy())
     np.savetxt(ensure_dir(result_dir / path_conf["trained_matrix"]), trained_matrix, fmt="%.6f", delimiter=",") 
-    # 画出最佳模型的acc和loss的曲线
-    plt.figure()
-    plt.plot(best_result["train_loss"], label="train_loss")
-    plt.plot(best_result["test_loss"], label="test_loss")
-    plt.legend()
-    plt.savefig(ensure_dir(result_dir / path_conf["loss_plot"]))
-    plt.figure()
-    plt.plot(best_result["train_acc"], label="train_acc")
-    plt.plot(best_result["test_acc"], label=f"test_acc")
-    plt.legend()
-    plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
-    # 最佳模型关联性矩阵可视化
     channel_names = Metadata.load(*data_indices[0]).channels["emg"]
     metadata = [NodeMeta(n) for n in channel_names]
     styles = config["plot"]["matrix"]["styles"]
@@ -209,8 +210,9 @@ def train(
     )
     figure = visualize_matrix(trained_matrix,  metadata, style=plot_style)
     figure.write_html(ensure_dir(result_dir / path_conf["matrix_plot"]))
-    # 保存最佳模型
-    torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
+    # Save the best model
+    if "model" in path_conf:
+        torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
 
 def run(model_file: os.PathLike, data_index: Union[Tuple[int, int], List[Tuple[int, int]]]):
     model = cast(nn.Module, torch.load(model_file))

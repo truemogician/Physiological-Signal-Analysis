@@ -58,15 +58,15 @@ def preprocess(
     n_samples = SAMPLING_RATES["eeg"] * total_length // 1000
     epochs_array = dataset.to_epochs_array("eeg", n_samples)
     start_time = time.time()
-    # 对数据进行0.05-50Hz的滤波
+    # Apply band-pass filter
     epochs_array.filter(0.05, 50)
     eeg = epochs_array.get_data()
     trial_num = eeg.shape[0]
     first_trial = eeg[0].copy()
-    # 将数据重新组合
+    # Reshape eeg data
     eeg = np.split(eeg, total_length // interval, axis=2)
     eeg = np.concatenate(eeg, axis=0)          
-    # 构建运动意图标签，0为静息，1为运动
+    # Create labels, 0 for rest, 1 for motor
     labels = np.ones(eeg.shape[0])
     labels[:trial_num * DIVIDING_LINE // interval] = 0
     print(f"Preprocess Time: {time.time() - start_time:.2f}s")
@@ -108,7 +108,7 @@ def train(
         labels = np.concatenate((labels, labels_), axis=0)
         matrix_trial = np.concatenate((matrix_trial, trial_), axis=1)
     
-    # 初始化关联性矩阵
+    # Initialize connectivity matrix
     initial_matrix_path = ensure_dir(result_dir) / path_conf["initial_matrix"]
     if read_cache and os.path.exists(initial_matrix_path):
         matrix = np.loadtxt(initial_matrix_path, delimiter=",")
@@ -136,13 +136,13 @@ def train(
     for idx in range(batch):
         if batch > 1:
             print(f"Training the {idx + 1}{['st', 'nd', 'rd'][idx] if idx < 3 else 'th'} model...")
-        # 构建模型
+        # Instantiate model
         gcn_net_model = GcnNet(
             node_embedding_dims=model_conf["node_embedding_dim"],
             class_num=model_conf["class_num"],
             adjacent_matrix=matrix
         )
-        # 训练模型
+        # Train model
         iter_num = train_conf["iteration_num"]
         train_iter, test_iter = create_train_test_loader(
             eeg,
@@ -182,7 +182,7 @@ def train(
             best_model_idx = idx
             best_result = result
     
-    # 保存训练统计数据
+    # Save training statistics
     result_headers = ["train_loss", "train_acc", "test_loss", "test_acc"]
     if save_results:
         stats_workbook = xlwt.Workbook()
@@ -209,7 +209,7 @@ def train(
     if not save_results:
         return
     stats_workbook.save(ensure_dir(result_dir / path_conf["training_stats"]))
-    # 画出最佳模型的acc和loss的曲线
+    # Draw loss and acc curves of the best model
     if "loss_plot" in path_conf:
         plt.figure()
         plt.plot(best_result["train_loss"], label="train_loss")
@@ -222,7 +222,7 @@ def train(
         plt.plot(best_result["test_acc"], label=f"test_acc")
         plt.legend()
         plt.savefig(ensure_dir(result_dir / path_conf["acc_plot"])) 
-    # 保存关联性矩阵相关数据
+    # Save trained matrix, diff matrix and their plots
     trained_matrix = cast(NDArray[Shape["N, N"], npt.Float64], best_model.get_matrix().cpu().numpy())
     diff_matrix = trained_matrix - initial_matrix
     if "trained_matrix" in path_conf:
@@ -233,7 +233,7 @@ def train(
         np.savetxt(ensure_dir(result_dir / path_conf["diff_matrix"]), diff_matrix, fmt="%.6f", delimiter=",")
     if "diff_matrix_plot" in path_conf:
         visualize_matrix_and_save(np.abs(diff_matrix), result_dir / path_conf["diff_matrix_plot"])
-    # 保存最佳模型
+    # Save the best model
     if "model" in path_conf:
         torch.save(best_model, ensure_dir(result_dir / path_conf["model"]))
 

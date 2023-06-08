@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 from .utils import get_device
 
 
-class Gcn(Module):  # GCN为：relu(A@X@B)=>((X.T@A.T).T@B)
+class Gcn(Module):  # GCN：relu(A@X@B)=>((X.T@A.T).T@B)
     def __init__(self, node_emb_dim: int, adjacent_matrix: NDArray, dtype = torch.float32):
         node_num = adjacent_matrix.shape[0]
         assert len(adjacent_matrix.shape) == 2 and node_num == adjacent_matrix.shape[1], "adj_mat_array must be a square matrix"
@@ -41,7 +41,7 @@ class GcnNet(Module):
         self.class_num = class_num
         device = get_device()
         self.gcn_layer = Gcn(self.node_embedding_dims, adjacent_matrix, dtype)
-        self.conv1 = nn.Conv1d(self.node_num, self.node_num, 3, dtype=dtype, device=device)
+        # self.conv1 = nn.Conv1d(self.node_num, self.node_num, 3, dtype=dtype, device=device)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout()
         self.linear1 = nn.Linear(self.node_embedding_dims * self.node_num, self.node_embedding_dims, dtype=dtype, device=device)
