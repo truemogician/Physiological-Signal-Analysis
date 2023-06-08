@@ -1,3 +1,7 @@
+## Introduction
+
+This is the repository of my undergraduate research project. The goal of this project is to find the relationship between EEG signals and different mental states of human. Currently, this project uses a GNN model to classify EEG signals into 2 states: rest and motor. The architecture of this model originates from the correlation of brain signals within the same brain areas. So this project also implements a visualization tool to show the connectivity matrix, the parameters of the GNN layer in the model.
+
 ## Environment
 
 The environment of this project is managed by [conda](https://docs.conda.io/en/latest/). To get the environment ready, here's the steps:
