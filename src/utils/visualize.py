@@ -151,7 +151,7 @@ def visualize_matrix(
     np.fill_diagonal(matrix_mask, False)
     min = connectivity_matrix.min(initial=sys.float_info.max, where=matrix_mask)
     max = connectivity_matrix.max(initial=sys.float_info.min, where=matrix_mask)
-    slider_values = slider_step if type(slider_step) == list else np.linspace(min, max, cast(int, slider_step) + 1).tolist()
+    slider_values = np.linspace(min, max, cast(int, slider_step) + 1).tolist() if type(slider_step) == int else slider_step
     steps = []
     for value in slider_values:
         rescaled = [0 if w < value else (1 if max == value else (w - value) / (max - value)) for [_, _, w] in edges]
